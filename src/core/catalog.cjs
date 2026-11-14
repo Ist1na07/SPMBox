@@ -5,22 +5,29 @@ const TAGS = [
   ['chordjack','Chordjack','RC'], ['minijack','Minijack','RC'],
   ['dense chordstream','Dense Chordstream','RC'], ['fast chordstream','Fast Chordstream','RC'],
   ['speed','Speed','RC'], ['tech','Tech','RC'], ['vibro','Vibro','RC'], ['anchor','Anchor','RC'],
-  ['rc mix','RC Mix','RC'], ['wildcard','Wildcard','RC'],
+  ['rc mix','RC Mix','RC'],
   ['ln','LN','LN'],
   ['coordination','Coordination','LN'], ['density','Density','LN'], ['inverse','Inverse','LN'],
-  ['release','Release','LN'], ['technical','Technical','LN'], ['ln wildcard','LN Wildcard','LN'],
+  ['release','Release','LN'], ['technical','Technical','LN'],
   ['ln mix','LN Mix','LN'],
-  ['hybrid','Hybrid','Mix'], ['break','Break','Other'],
+  ['hybrid','Hybrid','Mix'],
 ].map(([id,label,family])=>({id,label,family,kind:['rc','ln','hybrid'].includes(id)?'family':'pattern',
   parent:['rc','ln','hybrid'].includes(id)||family==='Other'?null:family.toLowerCase(),
   defaultThreshold:id==='hybrid'?10:25}));
-const ENGINE_VERSION = 'spm-b074e0f-tag-b311c40-adapter-3';
-const COLLECTION_PREFIX = '!SPM Box · ';
-const DEFAULT_PRESET_NAME = COLLECTION_PREFIX+'全部 7K 键型';
+// Algorithm identity only. UI, collection rules and additive cache fields must NOT invalidate analysis.
+const ENGINE_VERSION = 'spm-b074e0f-tag-b311c40';
+const RETIRED_TAGS = ['wildcard','ln wildcard','break'];
+const COLLECTION_PREFIX = '!7K ';
+const DEFAULT_PRESET_NAME = '!7K 全部键型';
 function collectionLabel(id) {
   const tag=TAGS.find(t=>t.id===id);
   if(!tag)throw Error('未知分类');
-  return tag.parent?TAGS.find(t=>t.id===tag.parent).label+' · '+tag.label:tag.label;
+  return tag.label;
+}
+function collectionName(id,scope) {
+  const match=/^(detail|compact)-(1|1\.5|0\.75)x$/.exec(scope);
+  if(!match)throw Error('无效收藏夹模型或速率');
+  return COLLECTION_PREFIX+collectionLabel(id)+(match[1]==='compact'?' Compact':'')+({'1':'','1.5':' DT','0.75':' HT'}[match[2]]);
 }
 function options(input = {}) {
   const model = input.model ?? 'detail', rate = Number(input.rate ?? 1);
@@ -38,4 +45,4 @@ function rules(input) {
     return {tag:r.tag,mode:r.mode,threshold};
   });
 }
-module.exports = {TAGS,ENGINE_VERSION,COLLECTION_PREFIX,DEFAULT_PRESET_NAME,collectionLabel,options,rules};
+module.exports = {TAGS,RETIRED_TAGS,ENGINE_VERSION,COLLECTION_PREFIX,DEFAULT_PRESET_NAME,collectionLabel,collectionName,options,rules};

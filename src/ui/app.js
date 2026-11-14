@@ -5,6 +5,7 @@ const num=v=>v==null?'—':Number(v).toFixed(2);
 const integer=v=>Number(v).toLocaleString('en-US');
 let state,tagRules=[],activeTag='rc',ready=null,busy=false,page=0,keys=0,total=0,queryVersion=0,lastRows=[],managedRows=[],modalAction;
 let toastTimer,searchTimer;
+let databaseReady=null,expression='';
 async function api(name,...args){const r=await window.spm[name](...args);if(!r.ok)throw Error(r.error);return r.value;}
 function toast(text,error=false){clearTimeout(toastTimer);$('#toast').textContent=text;$('#toast').classList.toggle('error',error);$('#toast').hidden=false;toastTimer=setTimeout(()=>$('#toast').hidden=true,error?10000:6000);}
 function action(fn){return async(...args)=>{try{await fn(...args);}catch(e){toast(e.message,true);}};}
@@ -13,7 +14,7 @@ const label=id=>state.tags.find(t=>t.id===id)?.label??({'jack':'Jack',stamina:'C
 const tagFamily=id=>state.tags.find(t=>t.id===id)?.family?.toLowerCase()??(id==='ln'?'ln':'rc');
 const chips=tags=>tags.map(t=>`<span class="tag-chip ${esc(tagFamily(t))}">${esc(label(t))}</span>`).join('');
 function stale(){return state.options&&(state.options.model!==state.settings.model||state.options.rate!==state.settings.rate||state.root!==state.settings.songsRoot);}
-function showNote(){const note=$('#global-note');note.hidden=!stale();note.textContent='目录、模型或速率已改变。当前仍显示上一次结果；请重新分析后再创建收藏夹。';}
+function showNote(){const note=$('#global-note');note.hidden=!stale()&&!state.pending;note.textContent=state.pending?`${state.pending} 张旧缓存缺少整谱归属，点击分析谱面即可定向补齐；其余结果不会重跑。`:'目录、模型或速率已改变。当前仍显示上一次结果；点击分析，已有组合直接复用缓存。';}
 function applyState(next){
   state=next;
   $('#default-preset-name').textContent=state.defaultPresetName;
@@ -39,7 +40,7 @@ function renderIssues(){
   $('#issues-summary').textContent=`分析报告：${errors.length} 张失败 · ${warnings.length} 张分类失败 · ${r.skipped} 张不支持的谱面已跳过`;
   $('#issues-list').innerHTML=[...errors,...warnings].slice(0,100).map(e=>`<div>${esc(e.file)} — ${esc(e.reason)}</div>`).join('')+(errors.length+warnings.length>100?'<p>仅显示前 100 项。重新分析可重试失败文件。</p>':'');
 }
-function currentQuery(){const [sort,direction]=$('#sort').value.split(':');return {search:$('#search').value,keys,tag:$('#tag-filter').value,sort,direction,page};}
+function currentQuery(){const [sort,direction]=$('#sort').value.split(':');return {search:$('#search').value,keys,tag:$('#tag-filter').value,sort,direction,page,expression};}
 async function loadRows(){
   const version=++queryVersion;const data=await api('query',currentQuery());if(version!==queryVersion)return;
   total=data.total;lastRows=data.rows;
@@ -56,13 +57,13 @@ async function loadRows(){
 }
 function showDetail(row){
   $('#detail-title').textContent=row.title;
-  $('#detail-content').innerHTML=`<p class="muted">${esc(row.artist)} · [${esc(row.difficulty)}] · ${esc(row.creator)}</p><div class="muted">${row.keys}K · ${integer(row.notes)} notes · ${(row.duration/1000).toFixed(1)} s · ${row.bpm?Math.round(row.bpm)+' BPM':'BPM 未知'} · ${esc(row.model)} / ${row.rate}×</div><div class="detail-stats"><div><span>SPM Rating</span><strong>${num(row.rating)}</strong></div><div><span>RC Rating</span><strong>${num(row.rcRating)}</strong></div><div><span>LN Rating</span><strong>${num(row.lnRating)}</strong></div></div><div>${chips(row.tags)}</div>${row.classificationError?`<p class="notice">分类失败：${esc(row.classificationError)}</p>`:''}<p class="helper">${row.keys===7?'7K：重叠的难度负担占比；不是正确概率。Wildcard / Break 为时长加权局部支持。':'4K / 6K：五类归一化形态支持；不与 7K 百分比混用。'}</p><div class="detail-scores">${Object.entries(row.scores).sort((a,b)=>b[1]-a[1]).map(([t,v])=>`<div><span>${esc(label(t))}</span><span class="mono muted">${v.toFixed(2)}%</span></div>`).join('')}</div><p class="helper mono">ID ${row.beatmapId>0?row.beatmapId:'未提交'} · MD5 ${esc(row.md5)}</p><div class="detail-actions"><button id="reveal-current" class="button secondary">打开谱面所在文件夹 ↗</button>${row.beatmapId>0?'<button id="online-current" class="text-button">在线谱面 ↗</button>':''}</div>`;
+  $('#detail-content').innerHTML=`<p class="muted">${esc(row.artist)} · [${esc(row.difficulty)}] · ${esc(row.creator)}</p><div class="muted">${row.keys}K · ${integer(row.notes)} notes · ${(row.duration/1000).toFixed(1)} s · ${row.bpm?Math.round(row.bpm)+' BPM':'BPM 未知'} · ${esc(row.model)} / ${row.rate}×</div><div class="detail-stats"><div><span>SPM Rating</span><strong>${num(row.rating)}</strong></div><div><span>RC Rating</span><strong>${num(row.rcRating)}</strong></div><div><span>LN Rating</span><strong>${num(row.lnRating)}</strong></div></div><div>${chips(row.tags)}</div>${row.classificationError?`<p class="notice">分类失败：${esc(row.classificationError)}</p>`:''}<p class="helper">${row.keys===7?'7K：重叠的难度负担占比；不是正确概率。':'4K / 6K：五类归一化形态支持；不与 7K 百分比混用。'}</p><div class="detail-scores">${Object.entries(row.scores).filter(([t])=>row.keys!==7||state.tags.some(tag=>tag.id===t)).sort((a,b)=>b[1]-a[1]).map(([t,v])=>`<div><span>${esc(label(t))}</span><span class="mono muted">${v.toFixed(2)}%</span></div>`).join('')}</div><p class="helper mono">ID ${row.beatmapId>0?row.beatmapId:'未提交'} · MD5 ${esc(row.md5)}</p><div class="detail-actions"><button id="reveal-current" class="button secondary">打开谱面所在文件夹 ↗</button>${row.beatmapId>0?'<button id="online-current" class="text-button">在线谱面 ↗</button>':''}</div>`;
   $('#reveal-current').addEventListener('click',action(()=>api('reveal-map',row.md5)));
   $('#online-current')?.addEventListener('click',action(()=>api('open-beatmap',row.beatmapId)));
   $('#detail-dialog').showModal();
 }
 async function chooseRoot(){const result=await api('choose-root');if(result){applyState(result);invalidate();toast('谱面库已连接，点击「分析谱面」开始。');await loadRows();}}
-function setBusy(value){busy=value;$('#scan').disabled=value;$('#choose-root').disabled=value;$('#export').disabled=value||!state.count;$('#scan-progress').hidden=!value;$('#scan').textContent=value?'正在分析…':'分析谱面 →';$('#preview').disabled=value;$('#save-settings').disabled=value;$('#review').disabled=value||!ready;}
+function setBusy(value){busy=value;$('#scan').disabled=value;$('#choose-root').disabled=value;$('#export').disabled=value||!state.count;$('#scan-progress').hidden=!value;$('#scan').textContent=value?'正在分析…':'分析谱面 →';$('#preview').disabled=value;$('#save-settings').disabled=value;$('#review').disabled=value||!ready;for(const s of ['#rating-prepare','#grade-prepare','#filter-collection'])$(s).disabled=value;}
 async function scan(){
   if(busy)return;if(!state.settings.songsRoot){await chooseRoot();if(!state.settings.songsRoot)return;}
   invalidate();setBusy(true);$('#progress-bar').value=0;
@@ -71,11 +72,11 @@ async function scan(){
   }finally{setBusy(false);}
 }
 window.spm.onProgress(p=>{
-  $('#progress-title').textContent=`正在分析 ${integer(p.done)} / ${integer(p.total)} 张谱面`;
+  $('#progress-title').textContent=`${p.operation??'正在分析'} ${integer(p.done)} / ${integer(p.total)} 张谱面`;
   $('#progress-bar').max=Math.max(1,p.total);$('#progress-bar').value=p.done;
   $('#progress-detail').textContent=`${(p.elapsedMs/1000).toFixed(1)} s · ${p.workers} 个后台线程 · 缓存 ${p.hits} · 新分析 ${p.analysed} · 失败 ${p.errors}`;
 });
-function invalidate(){ready=null;$('#review').disabled=true;$('#boundary-preview').hidden=true;$('#preview-empty').hidden=false;}
+function invalidate(){ready=null;databaseReady=null;$('#rating-write').disabled=true;$('#grade-write').disabled=true;$('#review').disabled=true;$('#boundary-preview').hidden=true;$('#preview-empty').hidden=false;}
 function selectedRules(){return tagRules.filter(r=>r.enabled).map(({tag,mode,threshold})=>({tag,mode,threshold}));}
 function renderTags(){
   $('#tag-rules').innerHTML=tagRules.map(r=>{const tag=state.tags.find(t=>t.id===r.tag);return `<div class="tag-rule ${tag.kind==='family'?'family-rule':tag.parent?'sub-rule':''} ${r.tag===activeTag?'active':''}"><input type="checkbox" data-enable="${esc(r.tag)}" aria-label="选择 ${esc(label(r.tag))}" ${r.enabled?'checked':''}><button data-tag="${esc(r.tag)}">${esc(label(r.tag))}</button><small>${tag.kind==='family'?'总类 · ':''}${r.mode==='upstream'?'AUTO':r.threshold+'%'}</small></div>`;}).join('');
@@ -87,12 +88,11 @@ function renderActiveRule(){
   const rule=tagRules.find(r=>r.tag===activeTag),tag=state.tags.find(t=>t.id===activeTag);$('#active-tag').textContent=label(activeTag);$('#tag-family').textContent=tag.kind==='family'?'7K 总类 · RC / LN / Hybrid 并列':tag.parent?`${label(tag.parent)} 子类 · 7K`:'其他 · 7K';
   $('#rule-mode option[value="upstream"]').textContent=tag.kind==='family'?'TagClassifier 整谱类型判定':'TagClassifier 默认判定';
   $('#rule-mode').value=rule.mode;$('#threshold').value=rule.threshold;$('#threshold').disabled=rule.mode==='upstream';
-  const special=['break','wildcard'].includes(activeTag);
   if(tag.kind==='family'){
     $('#threshold-explanation').textContent=rule.mode==='upstream'?'按 TagClassifier 的整谱类型归入 RC、LN 或 Hybrid，不使用 Rating 的 RC/LN 类型。默认总类互斥；细分类保留各自的原始多标签判定。':activeTag==='hybrid'?'Hybrid 分数为 min(RC, LN) 的负担支持占比；分数 ≥ 阈值即入选。数值阈值模式允许总类之间重叠。':'使用对应家族的联合负担支持占比，分数 ≥ 阈值即入选。数值阈值模式允许总类之间重叠。';
     return;
   }
-  $('#threshold-explanation').textContent=rule.mode==='upstream'?'默认判定保留上游的先验、增补与混合门控；它不等价于统一百分比阈值。数值模式初值取保留门限 25%，Hybrid 取双族门限 10%。':activeTag==='hybrid'?'Hybrid 分数为 min(RC, LN) 的负担支持占比；分数 ≥ 阈值即入选。这样纯 RC 或纯 LN 不会因家族总和而被误当作 Hybrid。':special?'此类没有独立的难度积分分支；数值为时长加权局部支持。分数 ≥ 阈值即入选，仅使用 7K。':['rc mix','ln mix'].includes(activeTag)?'数值模式使用对应家族（RC 或 LN）的联合负担支持占比；不再要求上游的混合多样性门控。分数 ≥ 阈值即入选。':'使用此键型的单一负担占比分数，分数 ≥ 阈值即入选。各键型占比可能重叠；不是正确概率。';
+  $('#threshold-explanation').textContent=rule.mode==='upstream'?'默认判定保留上游的先验、增补与混合门控；它不等价于统一百分比阈值。数值模式初值取保留门限 25%。':['rc mix','ln mix'].includes(activeTag)?'数值模式使用对应家族（RC 或 LN）的联合负担支持占比；不再要求上游的混合多样性门控。分数 ≥ 阈值即入选。':'使用此键型的单一负担占比分数，分数 ≥ 阈值即入选。各键型占比可能重叠；不是正确概率。';
 }
 function renderBoundary(){
   const g=ready?.groups.find(g=>g.tag===activeTag);$('#boundary-preview').hidden=!g;$('#preview-empty').hidden=!!g;if(!g)return;
@@ -116,7 +116,7 @@ function openConfirm(title,html,confirmation,buttonText,fn){
 }
 function review(){
   if(!ready)throw Error('请先预览');const current=ready;
-  openConfirm('确认创建收藏夹',`<p>将写入 <code>${esc(current.file)}</code>。只更新拥有本工具标识且未经手动修改的收藏夹。现有数据库及标识文件会先备份。</p>${current.errors||current.warnings?`<div class="notice">本次分析有 ${current.errors} 张失败、${current.warnings} 张分类失败；这些谱面不会进入分类收藏夹。</div>`:''}<div class="review-list">${current.groups.map((g,i)=>`<div class="review-row"><span>${current.actions[i].type==='create'?'新建':'更新'} · ${esc(current.actions[i].name.split(' [SPMBox:')[0])}${current.actions[i].previousName?'（更新分类名称）':''}${g.count===0?'（空）':''}</span><span>${integer(g.count)} maps</span></div>`).join('')}</div>`,
+  openConfirm('确认创建收藏夹',`<p>将写入 <code>${esc(current.file)}</code>。管理凭证保存在旁边的记录文件。仅更新未经手动修改的自动收藏夹；旧长名会改成短名，已验证的废弃分类会删除。写入前备份。</p>${current.errors||current.warnings?`<div class="notice">本次分析有 ${current.errors} 张失败、${current.warnings} 张分类失败；这些谱面不会进入分类收藏夹。</div>`:''}<div class="review-list">${current.actions.map(a=>`<div class="review-row"><span>${a.type==='create'?'新建':a.type==='delete'?'删除废弃分类':'更新'} · ${esc(a.name.split(' [SPMBox:')[0])}${a.previousName?'（简化名称）':''}${a.count===0?'（空）':''}</span><span>${integer(a.count)} maps</span></div>`).join('')}</div>`,
     '我已完全退出 osu!，并确认上述分类和空收藏夹。','备份并写入',async()=>{
       const result=await api('write',current.token);invalidate();toast(`已保存 ${result.actions.length} 个收藏夹。备份：${result.backup}`);await loadManaged();
     });
@@ -139,9 +139,23 @@ async function loadManaged(){
 function fillBackups(backups){$('#backup-select').innerHTML=backups.map(id=>`<option value="${esc(id)}">${esc(id.split('_')[0])} UTC</option>`).join('')||'<option value="">暂无备份</option>';$('#restore').disabled=!backups.length;}
 function switchPanel(id){
   $$('.panel').forEach(p=>p.hidden=p.id!=='panel-'+id);$$('.nav').forEach(b=>b.classList.toggle('active',b.dataset.panel===id));
-  $('#breadcrumb').textContent={library:'谱面库',creator:'收藏夹创建器',managed:'收藏夹管理',settings:'设置与关于'}[id];
+  $('#breadcrumb').textContent={library:'谱面库',rating:'游戏内难度重排',grade:'成绩评级',creator:'收藏夹创建器',managed:'收藏夹管理',settings:'设置与关于'}[id];
   window.scrollTo(0,0);
   if(id==='managed')return loadManaged();
+  if(id==='rating'&&state.settings.osuRoot)return loadDatabaseBackups();
+}
+async function loadDatabaseBackups(){const data=await api('database-backups');$('#database-backup').innerHTML=data.rows.map(e=>`<option value="${esc(e.id)}">${esc(e.id.split('_')[0])} UTC · ${esc(e.label)}</option>`).join('')||'<option value="">暂无备份</option>';$('#database-restore').disabled=!data.rows.length;}
+const gradeName=n=>['银 SS','银 S','SS','S','A','B','C','D','F','无'][n]??String(n);
+function databaseResult(kind,result){
+  databaseReady={...result,kind};$('#rating-write').disabled=kind!=='rating'||!result.summary.maps;$('#grade-write').disabled=kind!=='grade'||!result.summary.maps;
+  const panel=$('#'+kind+'-result');panel.hidden=false;
+  const reports=result.reports??[],hits=reports.reduce((s,r)=>s+r.hits,0),analysed=reports.reduce((s,r)=>s+r.analysed,0),errors=reports.reduce((s,r)=>s+r.errors.length,0);
+  panel.innerHTML=`<h2>预览：${integer(result.summary.maps)} 张谱面将变更</h2><p class="helper">${kind==='rating'?`缓存命中 ${integer(hits)} · 新分析 ${integer(analysed)} · 失败 ${errors} · 未匹配数据库 ${result.summary.unmatched} 个谱面/速率结果`:`读取 ${result.summary.scores} 条 mania 成绩`}。仅展示前 30 张。${result.summary.maps?'':'已是目标结果，或暂无匹配谱面。'}</p><div class="review-list">${result.changes.map(c=>`<div class="review-row"><span>${esc(c.title)} [${esc(c.difficulty)}]<small class="muted"> · ID ${c.beatmapId>0?c.beatmapId:c.md5.slice(0,8)}</small></span><span class="mono">${kind==='rating'?c.updates.map(u=>`${u.mod===576?'NC':u.rate===1?'NM':u.rate===.75?'HT':'DT'} ${num(u.before)} → ${num(u.after)}`).join('<br>'):`${gradeName(c.before)} → ${gradeName(c.after)}${c.stateChanges?.length?'<br>'+c.stateChanges.map(esc).join(' · '):''}`}</span></div>`).join('')}</div>`;
+}
+async function prepareRating(){invalidate();setBusy(true);try{const rates=$$('input[name="rating-rate"]:checked').map(e=>Number(e.value));databaseResult('rating',await api('rating-preview',{rates}));}finally{setBusy(false);}}
+function gradeSettings(){return {thresholds:Object.fromEntries(['S','A','B','C','D'].map(g=>[g,Number($('#grade-'+g).value)])),mods:Object.fromEntries(['nf','ez','ht'].map(m=>[m,$('#grade-'+m).value])),lastPlayed:$('#grade-last').value,unplayedIfNoScore:$('#grade-unplayed').checked};}
+function confirmDatabase(kind){const current=databaseReady;if(!current||current.kind!==kind)throw Error('请先重新预览');
+  openConfirm(kind==='rating'?'确认游戏内难度重排':'确认成绩评级',`<p>将修改 <code>${esc(current.file)}</code> 中的 ${integer(current.summary.maps)} 张谱面。${kind==='rating'?'对应星数将替换为 SPM Rating，其他 Mod 星数、成绩和评级保持不变。':'仅修改 mania 评级及选定的游玩状态，不改原始成绩。'}</p><p>先备份整个 osu!.db，再写入。可从“游戏内难度重排”恢复备份。</p>`,'我已完全退出 osu!，确认备份并写入上述变更。','备份并写入',async()=>{const r=await api('database-write',current.token);invalidate();toast('数据库已更新。重新打开 osu! 后生效。备份：'+r.backup);await loadDatabaseBackups();});
 }
 async function init(){
   applyState(await api('state'));
@@ -151,6 +165,17 @@ async function init(){
   renderTags();renderActiveRule();await loadRows();
   $$('.nav').forEach(b=>b.addEventListener('click',action(()=>switchPanel(b.dataset.panel))));
   on('#choose-root','click',chooseRoot);on('#scan','click',scan);on('#cancel','click',()=>api('cancel'));
+  on('#rating-prepare','click',prepareRating);on('#rating-write','click',()=>confirmDatabase('rating'));
+  $$('input[name="rating-rate"]').forEach(e=>e.addEventListener('change',()=>{databaseReady=null;$('#rating-write').disabled=true;}));
+  for(const m of ['nf','ez','ht'])$('#grade-'+m).innerHTML='<option value="fixedD">固定为 D</option><option value="normal">等同 NM</option><option value="none">不显示评级</option><option value="ignore">忽略此成绩</option>';
+  if(state.settings.grade){const g=state.settings.grade;for(const key of ['S','A','B','C','D'])$('#grade-'+key).value=g.thresholds[key];for(const key of ['nf','ez','ht'])$('#grade-'+key).value=g.mods[key];$('#grade-last').value=g.lastPlayed;$('#grade-unplayed').checked=g.unplayedIfNoScore;}
+  if(state.settings.ratingRates)$$('input[name="rating-rate"]').forEach(e=>e.checked=state.settings.ratingRates.includes(Number(e.value)));
+  on('#grade-prepare','click',async()=>{invalidate();setBusy(true);try{databaseResult('grade',await api('grade-preview',gradeSettings()));}finally{setBusy(false);}});
+  on('#grade-write','click',()=>confirmDatabase('grade'));
+  $$('#panel-grade input, #panel-grade select').forEach(e=>e.addEventListener('change',()=>{databaseReady=null;$('#grade-write').disabled=true;}));
+  on('#database-restore','click',()=>{const id=$('#database-backup').value;if(!id)return;openConfirm('恢复整个 osu!.db','<div class="notice">星数、评级及谱面记录将回退到该备份状态，之后的数据库更改也会回退。当前文件会先另行备份。</div>','我已退出 osu!，确认恢复整个游戏数据库。','备份当前并恢复',async()=>{await api('database-restore',id);invalidate();toast('游戏数据库已恢复。');await loadDatabaseBackups();});});
+  on('#apply-expression','click',async()=>{const previous=expression;expression=$('#expression').value;page=0;try{await loadRows();}catch(e){expression=previous;throw e;}});
+  on('#filter-collection','click',async()=>{const r=await api('filter-preview',{name:$('#filter-name').value,query:currentQuery()});openConfirm('导出筛选结果',`<p>将 ${r.count} 张匹配谱面保存为 <strong>${esc(r.actions[0].name)}</strong>。包含全部匹配结果，不限当前页；自动备份并保护同名用户收藏夹。</p>`,'我已退出 osu!，确认创建或更新这个自动收藏夹。','备份并写入',async()=>{const result=await api('write',r.token);toast('收藏夹已保存。备份：'+result.backup);});});
   on('#search','input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(action(()=>{page=0;return loadRows();}),150);});
   for(const s of ['#sort','#tag-filter'])on(s,'change',()=>{page=0;return loadRows();});
   $$('#key-filter button').forEach(b=>b.addEventListener('click',action(()=>{keys=Number(b.dataset.keys);page=0;$$('#key-filter button').forEach(x=>x.classList.toggle('active',x===b));return loadRows();})));

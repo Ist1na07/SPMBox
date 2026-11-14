@@ -974,3 +974,16 @@ main{
 #toast{
   left:calc(50% + 92px)}
 }
+.expression-filter{margin:0 0 20px;padding:16px 18px;background:var(--surface,#191d24);border-radius:8px}
+.expression-filter summary{cursor:pointer;color:#c6d0d8;font-size:13px}
+.filter-expression-controls{display:flex;gap:10px;margin-top:12px}
+.filter-expression-controls input{flex:1;min-width:100px}
+.rate-options{display:flex;gap:26px;flex-wrap:wrap;margin-bottom:18px}
+.rate-options label{display:flex;gap:8px;align-items:center}
+.grade-thresholds{display:flex;gap:14px;flex-wrap:wrap}
+.grade-thresholds label{display:grid;gap:8px;max-width:90px}
+.grade-thresholds input{width:85px}
+#rating-result,#grade-result{margin:26px 0}
+#rating-result .review-row,#grade-result .review-row{gap:22px}
+#rating-result .review-row>span:last-child{flex-shrink:0;text-align:right}
+.settings-fields .checkbox-label{display:flex;gap:10px;align-items:center;justify-content:flex-start}.settings-fields .checkbox-label input{margin:0;width:auto}

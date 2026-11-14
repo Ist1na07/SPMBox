@@ -32,8 +32,8 @@ test('threshold boundary includes equals; lowest insiders, highest outsiders; 7K
   assert.equal(g.inside[0].beatmapId,102);assert.equal(g.hashes.length,6);
   const [native]=preview(rows,[{tag:'speed',mode:'upstream',threshold:25}]);assert.equal(native.count,4);
 });
-test('21 preset categories, strict user-input validation',()=>{
-  assert.equal(TAGS.length,21);assert.equal(new Set(TAGS.map(t=>t.id)).size,21);
+test('18 preset categories, strict user-input validation',()=>{
+  assert.equal(TAGS.length,18);assert.equal(new Set(TAGS.map(t=>t.id)).size,18);
   for(const rate of [0,-1,1.1,NaN])assert.throws(()=>options({rate}));
   for(const threshold of [-1,101,NaN])assert.throws(()=>rules([{tag:'speed',mode:'threshold',threshold}]));
   assert.throws(()=>rules([]));assert.throws(()=>rules([{tag:'unknown',mode:'upstream',threshold:25}]));
@@ -48,8 +48,8 @@ test('default preset retains upstream tags; scalar Hybrid excludes pure-family c
 });
 test('RC and LN are parents, peers of Hybrid; default family collections use classifier sort, not rating or leaf union',()=>{
   assert.deepEqual(TAGS.filter(t=>t.kind==='family').map(t=>[t.id,t.parent]),[['rc',null],['ln',null],['hybrid',null]]);
-  for(const tag of ['speed','chordjack','rc mix','wildcard'])assert.equal(TAGS.find(t=>t.id===tag).parent,'rc');
-  for(const tag of ['coordination','inverse','ln mix','ln wildcard'])assert.equal(TAGS.find(t=>t.id===tag).parent,'ln');
+  for(const tag of ['speed','chordjack','rc mix'])assert.equal(TAGS.find(t=>t.id===tag).parent,'rc');
+  for(const tag of ['coordination','inverse','ln mix'])assert.equal(TAGS.find(t=>t.id===tag).parent,'ln');
   const rows=[['RC','LN',['speed'],90,10],['LN','RC',['coordination'],10,90],['Hybrid','RC',['speed','coordination'],55,45]].map(([classificationFamily,family,tags,rc,ln],i)=>({file:String(i),keys:7,classified:true,classificationFamily,family,tags,scores:{rc,ln,hybrid:Math.min(rc,ln)},md5:String(i).padStart(32,'0')}));
   rows.push({...rows[0],keys:4},{...rows[1],classified:false});
   for(const [i,tag] of ['rc','ln','hybrid'].entries())assert.deepEqual(preview(rows,[{tag,mode:'upstream',threshold:25}])[0].hashes,[String(i).padStart(32,'0')]);

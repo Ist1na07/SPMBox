@@ -3,7 +3,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {randomUUID}=require('node:crypto');
 const {atomicWrite,readJson}=require('./storage.cjs');
-const {COLLECTION_PREFIX,collectionLabel}=require('./catalog.cjs');
+const {RETIRED_TAGS,collectionName}=require('./catalog.cjs');
 
 // osu!stable collection.db: i32 version, i32 count, osu-string name,
 // i32 number of maps, then osu-string MD5s. No extensible metadata field exists.
@@ -37,8 +37,8 @@ function encode(db) {
 const sidecar=file=>file+'.spmbox.json';
 const sameMembers=(a,b)=>JSON.stringify([...a].sort())===JSON.stringify([...b].sort());
 function assertManifest(m,file) {
-  if(!m||m.schema!==1||typeof m.owner!=='string'||!Array.isArray(m.entries)||m.database!==path.resolve(file))throw Error('SPM Box 标识文件无效或属于其他数据库，请保留原文件并从备份恢复');
-  for(const e of m.entries)if(typeof e.key!=='string'||typeof e.name!=='string'||!Array.isArray(e.hashes)||!e.name.includes(` [SPMBox:v1:${m.owner}:`)||!e.name.endsWith(']'))throw Error('SPM Box 收藏夹记录损坏');
+  if(!m||![1,2].includes(m.schema)||typeof m.owner!=='string'||!Array.isArray(m.entries)||m.database!==path.resolve(file))throw Error('SPM Box 标识文件无效或属于其他数据库，请保留原文件并从备份恢复');
+  for(const e of m.entries)if(typeof e.key!=='string'||typeof e.name!=='string'||!Array.isArray(e.hashes)||(m.schema===1?(!e.name.includes(` [SPMBox:v1:${m.owner}:`)||!e.name.endsWith(']')):typeof e.id!=='string'))throw Error('SPM Box 收藏夹记录损坏');
 }
 async function readState(file) {
   let bytes=null;try{bytes=await fs.readFile(file);}catch(e){if(e.code!=='ENOENT')throw e;}
@@ -57,7 +57,9 @@ function managedState(db,m) {
   });
 }
 function plan(state,file,groups,scope) {
-  const manifest=structuredClone(state.manifest??{schema:1,owner:randomUUID(),database:path.resolve(file),entries:[]});
+  const manifest=structuredClone(state.manifest??{schema:2,owner:randomUUID(),database:path.resolve(file),entries:[]});
+  // Keep the durable identity out of game-visible names. Old entries retain their UUID.
+  if(manifest.schema===1){for(const e of manifest.entries)e.id=e.name.match(/:([\da-f-]{36})\]$/)?.[1]??randomUUID();manifest.schema=2;}
   const db=structuredClone(state.db),actions=[];
   for(const g of groups){
     if(!g.hashes.every(h=>/^[0-9a-f]{32}$/.test(h)))throw Error('无效谱面 MD5');
@@ -67,20 +69,26 @@ function plan(state,file,groups,scope) {
     if(entry){
       const matches=db.collections.filter(c=>c.name===entry.name);
       if(matches.length!==1||!sameMembers(matches[0].hashes,entry.hashes))throw Error(`收藏夹已被用户修改或删除，拒绝更新：${entry.name}`);
-      // Rename verified generated names to the current taxonomy, preserving UUIDs.
       const previousName=entry.name;
-      const name=previousName.startsWith('SPM Box · ')||previousName.startsWith(COLLECTION_PREFIX)
-        ?`${COLLECTION_PREFIX}7K · ${collectionLabel(g.tag)} · ${scope}${previousName.slice(previousName.indexOf(' [SPMBox:v1:'))}`:previousName;
+      const name=g.name??collectionName(g.tag,scope);
       if(db.collections.some(c=>c!==matches[0]&&c.name===name))throw Error('收藏夹名称冲突：'+name);
       matches[0].name=name;entry.name=name;
       matches[0].hashes=[...g.hashes];entry.hashes=[...g.hashes];entry.rule={mode:g.mode,threshold:g.threshold};
       actions.push({type:'update',name:entry.name,count:g.hashes.length,...(previousName!==name?{previousName}:{})});
     }else{
-      const id=randomUUID(),name=`${COLLECTION_PREFIX}7K · ${collectionLabel(g.tag)} · ${scope} [SPMBox:v1:${manifest.owner}:${id}]`;
-      if(db.collections.some(c=>c.name===name))throw Error('收藏夹名称冲突');
+      const id=randomUUID(),name=g.name??collectionName(g.tag,scope);
+      if(db.collections.some(c=>c.name===name))throw Error('同名收藏夹不属于本工具，保留原收藏夹并停止创建：'+name);
       db.collections.push({name,hashes:[...g.hashes]});
-      manifest.entries.push({key,name,hashes:[...g.hashes],rule:{mode:g.mode,threshold:g.threshold}});
+      manifest.entries.push({id,key,name,hashes:[...g.hashes],rule:{mode:g.mode,threshold:g.threshold}});
       actions.push({type:'create',name,count:g.hashes.length});
+    }
+  }
+  // Retire only verified, unmodified auto-generated obsolete categories in this scope.
+  for(const e of [...manifest.entries])if(RETIRED_TAGS.some(tag=>e.key===scope+':'+tag)){
+    const matches=db.collections.filter(c=>c.name===e.name);
+    if(matches.length===1&&sameMembers(matches[0].hashes,e.hashes)){
+      db.collections.splice(db.collections.indexOf(matches[0]),1);manifest.entries.splice(manifest.entries.indexOf(e),1);
+      actions.push({type:'delete',name:e.name,count:e.hashes.length,retired:true});
     }
   }
   return {db,manifest,actions};
@@ -92,7 +100,7 @@ async function lock(file,action) {
     if(e.code!=='EEXIST')throw e;
     const owner=await readJson(lockPath,{});
     if(!Number.isSafeInteger(owner.pid)||owner.pid<=0)throw Error('收藏夹锁文件损坏，请确认没有写入任务后手动移除 '+lockPath);
-    try{process.kill(owner.pid,0);throw Error('另一个 SPM Box 正在写入收藏夹');}
+    try{process.kill(owner.pid,0);throw Error('另一个 SPM Box 正在写入此数据库');}
     catch(error){if(error.code!=='ESRCH')throw error;}
     await fs.unlink(lockPath);handle=await fs.open(lockPath,'wx');
   }
@@ -168,4 +176,4 @@ function removePlan(state,keys) {
     manifest:{...state.manifest,entries:state.manifest.entries.filter(e=>!keys.includes(e.key))},
     actions:[...names].map(name=>({type:'delete',name}))};
 }
-module.exports={decode,encode,readState,managedState,plan,commit,backups,restore,removePlan,sidecar};
+module.exports={decode,encode,readState,managedState,plan,commit,backups,restore,removePlan,sidecar,lock,currentEquals};

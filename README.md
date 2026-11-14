@@ -1,111 +1,137 @@
 # SPM Box
 
-**按 SPM 难度选谱，把键型整理成收藏夹。**
+**在游戏里按 SPM 难度选谱，把键型整理成收藏夹。**
 
-离线 Windows 桌面工具，以 SPM Rating、SPM Submodel 和 SPMTagClassifier 为核心。
-支持 osu!stable 的本地 `.osu` 谱面与 `collection.db`，不修改谱面文件或 osu! 原版星数。
+离线 Windows 桌面工具，以 SPM Rating、SPM Submodel、SPMTagClassifier 为核心。
+独立 Electron 实现，功能参考 OsuManiaToolbox；成绩评级逻辑由原项目改编并保留 MIT 署名。
 
 ## 开始使用
 
-1. 下载 [Releases](https://github.com/Ist1na07/SPMBox/releases) 中的 Windows x64 portable 程序；也可以按下文从源码运行。
-2. 选择 **osu!stable 安装目录**，或其 `Songs` 文件夹。安装目录中的 `BeatmapDirectory` 配置也会被读取。
-3. 点击 **分析谱面**，按 SPM 总难度、RC、LN、曲名或 ID 排序，也可筛选键数、键型、作者及导出 CSV。
-4. 在 **收藏夹创建器** 中应用“!SPM Box · 全部 7K 键型”预设，或为单个键型设置阈值，然后预览边界谱面。
-5. 检查各分类数量，**完全退出 osu!**，确认后批量创建。重新打开 osu! 后查看收藏夹。
+1. 从 GitHub Actions 的构建 artifact 或本地打包取得 Windows x64 portable 程序，也可以按下文从源码运行。更新程序前先退出旧的 SPM Box，保留应用数据目录。
+2. 连接 osu!stable 安装目录或 Songs 文件夹。会读取安装目录的 `BeatmapDirectory` 设置。
+3. 点击 **分析谱面**。已有有效缓存直接复用，只分析新建或改动的谱面。
+4. 要在游戏内排序，打开 **游戏内难度重排**，选择 NM / HT / DT，预览后完全退出 osu!，备份并写入。
+5. 要按键型整理，打开 **收藏夹创建器**，应用 **!7K 全部键型**，检查边界谱面、分类数量和实际名称后确认写入。
 
-程序无需联网；“在线谱面”和“源代码”按钮会按你的操作打开浏览器。当前发行版未做代码签名。
+程序不联网分析，不修改 `.osu` 文件。在线谱面与源代码按钮按你的操作打开浏览器。
+支持 osu!stable，不直接读写 osu!lazer 数据库；本地 portable 未做代码签名。
+**版本标签及 GitHub Release 仅在用户明确要求对应版本时创建。**
 
-## 先看边界，再创建
+## 游戏内难度重排，不只是工具内排序
 
-- 每个键型有独立规则和单维数值阈值，比较采用 **分数 ≥ 阈值**。
-- 每个分类显示入选分数最低的 5 张和未入选分数最高的 5 张，包含谱面 ID；未提交谱面显示本地 MD5 短标识。
-- 默认预设一次选择全部 **21 个 7K 分类**，包括 RC、LN、Hybrid 三个并列总类及细分/回退/休息分类；空分类也会创建。4K/6K 不会进入此预设。
-- 预设名称和自动收藏夹统一使用 **`!SPM Box · `** 前缀，子类名称包含所属家族，例如 `!SPM Box · 7K · RC · Speed · detail-1x`，便于在游戏中集中排列与检索。
-- 支持 Detailed / Compact 与 NM / DT（NC）/ HT；不同模型与速率的收藏夹分开管理，缓存也互不混用。
+- 将所选模型的 **SPM 总难度**写入 `osu!.db` 中原生 4K / 6K / 7K mania 的 NM、HT、DT 星数槽位；已有 NC 槽位同时更新。
+- 支持 Detailed / Compact。只计算所选且尚未缓存的速率；例如已有 NM，选 HT 不会重跑 NM。准备其他速率不会替换当前谱面库视图。
+- 按谱面 MD5 匹配数据库，键数不匹配或没有匹配记录的谱面跳过并统计；未分析成功的谱面保留原星数。
+- 预览显示变更数、旧星数 → 新星数、谱面 ID、缓存命中和失败数。只在确认后写入，游戏打开时拒写。
+- 其他模式、其他 Mod 槽位、成绩和评级保持原字节；不借用 EZ 星数存储备份。
+- 写入前备份到 osu! 目录的 `.spmbox-db-backups`。该页面可恢复整个 `osu!.db`，恢复前再次备份当前文件。
+- 重新启动游戏后按 Difficulty 排序。游戏 F5 重建或重新计算星数可能覆盖本地星数，再次应用缓存即可。
 
-### 默认判定和数值阈值各有明确含义
+支持 2014-06-09 之后的 stable 记录布局，包括 2019 年记录长度变化与 2025 年单精度星数。
+未知字段类型、截断或多余数据拒绝覆盖。恢复整个数据库也会回退备份后的谱面索引和评级更改。
 
-**RC / LN / Hybrid 总类**使用 TagClassifier 的 `overall.sort` 整谱归属（`rc / ln / hb`），默认互斥，不使用 Rating 根据 LN 覆盖率给出的类型。RC 下包括 Chordjack、Minijack、Chordstream、Speed、Tech、Vibro、Anchor、RC Mix 等；LN 下包括 Coordination、Density、Inverse、Release、Technical、LN Wildcard、LN Mix。
+## 成绩评级与筛选导出
 
-界面与收藏夹名称表达键型家族层级。细分类继续保留上游原始多标签判定，因此 Hybrid 谱面也可能进入某个具体 RC 或 LN 细分类，不会为了分组删掉它的标签。
+**成绩评级**读取本地 `scores.db`，按 mania 准确率取每张谱面的最佳评级：100% 为 SS；默认 S/A/B/C/D 门限为 99/98/96/93/88%。可单独设置 NF、EZ、HT 等同 NM、固定 D、不显示评级或忽略该成绩。
+可选择保留最近游玩时间，或取最高准确率／最高分数成绩的时间；也可将无本地成绩的谱面标记为未游玩。
+仅修改 `osu!.db` 的评级及选定状态，不改实际成绩、回放或 `scores.db`。同样先预览、退出游戏、备份再写入。
 
-上游细分类的默认整谱标签使用**先验保留、强标签增补、混合及双族门控**，并不存在每个标签一个固定阈值就能完全复现的规则。SPM Box 保留这些原始判定，另提供每个分类独立的数值阈值模式。
+谱面库支持文字、键数、键型及表达式组合筛选，并可把**全部匹配结果**导出 CSV 或创建为自动收藏夹，不限当前分页。例如：
 
-数值模式初值为上游保留门限 **25%**；Hybrid 初值为 Detailed 的双族门限 **10%**。这些初值不是对上游整套判定的替代声明。点击“恢复默认”返回上游判定。
+```text
+keys == 7 && rating >= 10 && rating < 20
+hasTag("density") || hasTag("coordination")
+creator ~ "name" && lnRating > 8
+```
 
-- 14 个具体 7K 分支：上游的重叠支持加权难度负担占比，不是正确概率或时间占比。
-- RC / LN 总类：对应家族联合负担占比；数值模式允许总类间重叠，不再按整谱类型互斥筛选。
-- RC Mix / LN Mix：对应家族联合负担占比；数值模式不再要求上游混合多样性门控。
-- Hybrid：单维分数为 `100 × min(RC familyMass, LN familyMass)`，避免纯 RC / LN 因家族总和而误入 Hybrid；它与上游显示标签的联合百分比不同。
-- Wildcard / Break：上游没有对应连续难度分支，数值模式使用时长加权局部分类支持。上游默认整谱判定通常不会选出它们，空收藏夹是正常结果。
-- 4K/6K 浏览器中的粗分类为另一套五类归一化形态支持，不能与 7K 百分比混为一谈。
+表达式使用 SPM Box 字段，不执行 JavaScript，也不兼容原工具的 C# 对象表达式。
+支持 `&&`、`||`、`!`、括号、`== != < <= > >=`、文字包含 `~` 和 `hasTag("tag id")`。
+字段有 `keys`、`rating`、`rcRating`、`lnRating`、`beatmapId`、`beatmapSetId`、`notes`、`duration`（毫秒）、`bpm`、`title`、`artist`、`creator`、`difficulty`、`family`（Rating 家族）、`classificationFamily`（Classifier 家族）、`rate` 和 `model`。
 
-## 只管理属于 SPM Box 的收藏夹
+## 18 类收藏夹，短名字与明确层级
 
-`collection.db` 没有扩展元数据字段，因此自动收藏夹的名称末尾附带完整的
-`[SPMBox:v1:<owner UUID>:<collection UUID>]` 标识。请保留该标识。
+默认预设仅使用 7K，排除 RC Wildcard、LN Wildcard、Break：
 
-程序同时维护同目录的 `collection.db.spmbox.json`，只有**名称标识、管理记录与谱面列表全部匹配**时才能更新或删除。
-旧版自动收藏夹在下次确认更新时补齐 `!` 前缀及子类的 RC / LN 家族名称，保留原 UUID 与管理关系；已被手动改动或存在目标名称冲突时拒绝改名。不会仅因名称相似而修改用户收藏夹。
+- **RC**：Chordjack、Minijack、Dense Chordstream、Fast Chordstream、Speed、Tech、Vibro、Anchor、RC Mix。
+- **LN**：Coordination、Density、Inverse、Release、Technical、LN Mix。
+- **Hybrid**：与 RC、LN 并列。
 
-升级此分类层级后需重新分析一次，以保存 TagClassifier 的整谱归属字段，再应用默认预设；旧缓存缺少该字段，不用 Rating 类型猜测。
+默认收藏夹名为 **`!7K Density`**、`!7K RC`、`!7K Hybrid` 等，不附家族路径、算法编号或 UUID。
+其他模型／速率只加必要短后缀，例如 `!7K Density DT`、`!7K Density Compact`，避免变体相互覆盖。
+界面仍显示 RC／LN 父子层级；空分类也会创建。
 
-- 不按显示名认领收藏夹；你手动创建的同名分类仍然受到保护。
-- 手动增删谱面、复制出重复标识或删除管理记录后，程序不会继续覆盖原收藏夹。
-- 用户收藏夹和无法验证来源的其他自动收藏夹均为只读。
-- 保存前备份数据库与管理记录；写入使用临时文件替换、并发检查、锁文件和中断记录。
-- **收藏夹管理 → 恢复收藏夹** 可恢复配对备份，恢复前也会备份当前文件。
+每个分类独立设置默认判定或单维数值阈值。创建前显示入选分数最低 5 张、未入选分数最高 5 张，含在线谱面 ID；未提交谱面显示本地 MD5 短标识。
 
-备份位于 osu! 目录的 `.spmbox-backups`。恢复会回退整个数据库，包括备份之后的用户收藏夹更改。
-保留 `collection.db`、标识文件和备份一起迁移；路径改变时程序会拒绝把旧记录直接认作新数据库。
-见 [恢复与故障处理](docs/RECOVERY.md)。
+### 默认判定与数值阈值
 
-## 快速分析，不简化算法
+RC / LN / Hybrid 默认使用 `overall.sort` 整谱归属，不使用 Rating 的 LN 覆盖率类型；三个默认总类互斥。
+细类使用 `overall.tags`，保留原始多标签：Hybrid 谱面可能同时属于具体 RC / LN 细类。
 
-- 后台线程池，默认最多 4 线程，按 CPU 可用并行度限制；界面不等待单张谱面的计算。
-- 只做一次完整 rating，把同一次原始难度场交给 7K classifier。
-- 直接调用完整评分引擎，跳过仅供 overlay 显示的曲线分桶和段位格式化；评分模型与参数不变。
-- 持久增量缓存按算法版本、文件路径、大小、修改/变更时间、模型与速率隔离；未变化谱面不再运行两个引擎。
-- 取消分析保留上一次完整谱面库，已完成的分析仍写入缓存；失败文件会在下次扫描重试。
-- 谱面表按 100 行分页，搜索节流，进度消息节流；缓存日志定期合并，最多保留 150,000 项。
+上游整谱判定有先验保留、强标签增补、混合及双族门控，不能用一个固定阈值精确替代。
+SPM Box 默认保留原始判定，数值模式另提供独立门限，比较采用 **分数 ≥ 阈值**。
+数值初值为保留门限 25%，Hybrid 为 Detailed 双族门限 10%；“恢复默认”回到上游判定。
 
-本机 48 张大小分层抽样的真实 7K 谱面：单线程 **8.899 s** → 4 线程 **4.419 s**，完整缓存命中约 **5 ms**。
-三者结果完全一致。环境及限制见 [验证记录](docs/VERIFICATION.md)，耗时取决于机器和谱面。
+- 具体分支：上游重叠的支持加权难度负担占比，不是正确概率或时间占比。
+- RC / LN 与 RC Mix / LN Mix：相应家族联合负担占比；数值模式不要求原始整谱归属或混合门控。
+- Hybrid：`100 × min(RC familyMass, LN familyMass)`，避免纯家族误入；不同于上游标签的家族联合百分比。
+- 4K/6K 原生五类归一化形态支持只用于浏览筛选，不进入此 7K 预设。
+
+## 短名也不能误动用户收藏夹
+
+自动管理身份、UUID、名称、规则和成员列表保存在同目录的 **`collection.db.spmbox.json`**。
+`collection.db` 不支持额外字段，身份不再塞进游戏可见名称。
+只有路径绑定的管理记录、唯一名称及成员列表匹配时，软件才允许更新或删除。
+
+- 旧版长名及名称内 UUID 在确认更新时迁移为短名，UUID 保留在管理记录中，不重复创建。
+- 已验证且未改动的旧 Wildcard／LN Wildcard／Break 自动收藏夹在同次预览中列出删除；手动改动的旧分类保留并受保护。
+- 不按 `!7K` 前缀认领收藏夹。同名用户收藏夹阻止创建，不覆盖、不合并。
+- 手动改名、增删成员、复制出同名集合或丢失管理记录后，拒绝接管。请把数据库、记录文件和备份一起保留。
+- 写入前备份数据库和管理记录；原子替换、锁、并发检查、中断记录及失败回滚保护写入。
+- **收藏夹管理 → 恢复收藏夹**恢复整个配对数据库；备份位于 `.spmbox-backups`。
+
+恢复与手动抢救方式见 [恢复与故障处理](docs/RECOVERY.md)。
+
+## 更新不再等于全量重跑
+
+缓存身份只包含**实际评分／分类算法身份**，不绑定 SPM Box 应用版本、界面、收藏夹规则或命名。
+既有 adapter 1–3 数据自动兼容迁移；已有标签可以精确还原的整谱家族直接补字段，不运行引擎。
+少量旧无标签结果缺少原先验回退家族，仅在分类扫描时定向补算；难度重排可以直接复用其已保存星数。
+未知算法版本不会误用，也不会因为当前版本不使用而立即清掉。
+
+- 按文件路径、大小、修改／变更时间、模型与速率隔离；文件未改且算法未变，直接缓存命中。
+- 切回已分析过的 Detailed / Compact、NM / DT / HT 组合复用原结果。
+- 有效变体不会因超过旧的 150,000 条上限而被挤掉；完整扫描后只清理当前目录已删除文件的记录。
+- 取消分析保留上一完整谱面库，已完成工作仍缓存；失败文件下次重试。
+- 后台线程池最多 4 线程；评分只运行一次，原始难度场复用于 7K 分类，不简化评分模型。
+- 跳过仅供 overlay 展示的曲线分桶／段位格式化。界面按 100 行分页，搜索与进度节流。
+
+若未来真实算法改变，需要重新计算受影响的结果；旧缓存字段已被旧版本删除时无法凭空恢复。
+更换 portable 文件不会改变 `%APPDATA%/SPM Box` 中的缓存，请不要随更新删除该目录。
+历史性能数据及本次检查见 [验证记录](docs/VERIFICATION.md)。
 
 ## 从源码运行
 
-需要 Node.js 22.12+（推荐 24）与 Windows 10/11 x64。
+Node.js 22.12+（推荐 24），Windows 10/11 x64。
 
 ```sh
 npm ci
 npm start
+npm test
+npm run test:ui
+npm run build
 ```
 
-如果本机 npm 配置禁用了安装脚本，先执行 `node node_modules/electron/install.js` 下载官方 Electron 运行时。
-
-```sh
-npm test                 # 算法适配、边界、缓存、数据库与安全回归
-npm run test:ui          # 实际 Electron 交互测试，使用临时谱面和数据库
-npm run benchmark       # 生成测试谱面的冷/热缓存基准
-npm run build           # dist/SPM-Box-0.1.0-portable.exe
-```
-
-`npm run benchmark -- <本地谱面目录> 48` 可测真实谱面；只在临时目录中复制抽样文件，不上传谱面。
-GitHub Actions 在推送时运行测试、构建 Windows portable 并保存 Actions artifact，**不自动创建 Release**。
-版本标签与正式发布仅在用户明确要求对应版本时创建。
-
-## 当前支持范围
-
-- 原生 4K / 6K / 7K 的 SPM 总难度和 RC/LN 难度；星数应在相同键数内比较。
-- 7K 精细分类收藏夹；4K/6K 原生粗分类只用于浏览与筛选。
-- osu!stable；**不直接读写 osu!lazer 数据库**，不重写 `osu!.db`，不修改成绩评级。
-- 没有在线下载谱面、账号登录或遥测。分类失败与损坏谱面会在报告中列出，不静默伪造分数。
+本机 npm 禁用安装脚本时，先执行 `node node_modules/electron/install.js` 下载官方 Electron。
+`npm run build` 生成 `dist/SPM-Box-0.1.0-portable.exe`；正在运行的旧程序可能锁定同名文件，应先退出或另命名打包。
+`SPMBOX_UI_PACKAGED=1` 可对 `dist/win-unpacked` 运行同一套交互测试。
+`npm run benchmark -- <本地谱面目录> 48` 可测冷／热缓存；仅在临时目录抽样，不上传谱面。
+GitHub Actions 只测试、构建和保存 artifact，不自动发布 Release 或推送版本标签。
 
 ## 授权与署名
 
-MIT · Copyright (c) 2026 **Ist1na**。见 [LICENSE](LICENSE)。
-
-感谢 [zzzzv / OsuManiaToolbox](https://github.com/zzzzv/OsuManiaToolbox) 的功能参考、
-[SPM Map Analyser](https://github.com/Ist1na07/spm_rating_map_analyser) 的算法集成、
+MIT · Copyright (c) 2026 **Ist1na**；改编的成绩评级逻辑 Copyright (c) 2026 **zzzzv**。
+见 [LICENSE](LICENSE) 与保留的 [原项目 MIT 许可](vendor/toolbox/LICENSE)。
+感谢 [OsuManiaToolbox](https://github.com/zzzzv/OsuManiaToolbox)、
+[SPM Map Analyser](https://github.com/Ist1na07/spm_rating_map_analyser)、
 SPM Rating / Submodel / TagClassifier，以及 sunnyxxy 的基础架构工作。
-完整版本来源和运行时授权见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+算法固定版本和完整第三方声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

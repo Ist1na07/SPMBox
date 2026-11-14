@@ -25,10 +25,19 @@ project. No Sunny Rework runtime is bundled or used as SPM Box's rating engine.
 ## OsuManiaToolbox — zzzzv
 
 [OsuManiaToolbox](https://github.com/zzzzv/OsuManiaToolbox), copyright (c) 2026
-zzzzv, MIT. Acknowledged as the functional reference for local library browsing,
-difficulty sorting and collection creation. SPM Box's desktop application,
-database codec and collection ownership/transaction implementation are new;
-no OsuManiaToolbox source files are bundled.
+zzzzv, MIT. Functional reference for local library browsing, game-side difficulty
+reordering, expression filters and collections. `src/core/regrade.cjs` adapts the
+accuracy formula, grade thresholds, mod strategies and played-state behavior from
+`RegradeView.cs`, `RegradeSettings.cs` and `Extensions.cs` at
+`38466694ed7036b7ae30177d2e60ab0c97b2e8f2`.
+The original full MIT notice is retained in [vendor/toolbox/LICENSE](vendor/toolbox/LICENSE),
+and the adapted logic is attributed in the root license and app About page.
+The Electron UI and byte-preserving database/collection transaction implementations
+are new; SPM Box is not a fork of the WPF application.
+
+The stable database field layout was cross-checked against
+[zzzzv/OsuParsers](https://github.com/zzzzv/OsuParsers), in particular its typed
+single/double star dictionaries and 2025 float writer. That C# runtime is not bundled.
 
 ## Electron and development tooling
 

@@ -14,6 +14,8 @@
     <div class="nav-label">WORKSPACE</div>
     <nav aria-label="主导航">
       <button class="nav active" data-panel="library"><span>▦</span>谱面库<small id="nav-count">0</small></button>
+      <button class="nav" data-panel="rating"><span>↕</span>游戏内难度重排</button>
+      <button class="nav" data-panel="grade"><span>◎</span>成绩评级</button>
       <button class="nav" data-panel="creator"><span>⊞</span>收藏夹创建器</button>
       <button class="nav" data-panel="managed"><span>▤</span>收藏夹管理</button>
       <button class="nav" data-panel="settings"><span>⚙</span>设置与关于</button>
@@ -24,12 +26,13 @@
     <header class="topbar"><div><span class="crumb">SPM BOX</span><span class="slash">/</span><span id="breadcrumb">谱面库</span></div><span class="engine-badge">SPM Rating 1.2.0 <b>DETAILED</b></span></header>
     <main>
       <div id="global-note" class="notice" role="status" hidden></div>
+      <div id="scan-progress" class="progress-section" hidden><div class="progress-heading"><strong id="progress-title">正在发现谱面…</strong><button id="cancel" class="text-button">取消分析</button></div><progress id="progress-bar" max="1" value="0"></progress><div id="progress-detail" class="muted"></div></div>
       <section id="panel-library" class="panel">
         <div class="page-heading"><div><div class="eyebrow">YOUR CHARTS, A CLEARER PICTURE</div><h1>谱面库<span class="heading-dot">.</span></h1><p>用 SPM 难度找到下一张谱面。</p></div><div class="heading-actions"><button id="export" class="button secondary" disabled>导出 CSV ↗</button><button id="scan" class="button primary">分析谱面 <span>→</span></button></div></div>
         <div class="path-line"><span class="folder-icon">⌁</span><span id="root-path">尚未连接 osu!stable 谱面库</span><button id="choose-root">选择文件夹</button></div>
-        <div id="scan-progress" class="progress-section" hidden><div class="progress-heading"><strong id="progress-title">正在发现谱面…</strong><button id="cancel" class="text-button">取消分析</button></div><progress id="progress-bar" max="1" value="0"></progress><div id="progress-detail" class="muted"></div></div>
         <div class="stats"><div><span>已分析谱面</span><strong id="stat-total">0</strong></div><div><span>7K 谱面</span><strong id="stat-7k">0</strong></div><div><span>4K / 6K 谱面</span><strong id="stat-other">0</strong></div><div><span>上次分析</span><strong id="stat-time" class="stat-small">尚未分析</strong><small id="cache-detail">增量缓存已启用</small></div></div>
         <div class="library-toolbar"><div class="segmented" id="key-filter" aria-label="键数筛选"><button class="active" data-keys="0">全部</button><button data-keys="7">7K</button><button data-keys="4">4K</button><button data-keys="6">6K</button></div><div class="filter-controls"><label class="search"><span>⌕</span><input id="search" placeholder="搜索歌名、难度、作者或 ID" aria-label="搜索谱面"></label><select id="tag-filter" aria-label="键型筛选"><option value="">全部键型</option></select><select id="sort" aria-label="排序方式"><option value="rating:desc">SPM Rating ↓</option><option value="rating:asc">SPM Rating ↑</option><option value="rcRating:desc">RC Rating ↓</option><option value="lnRating:desc">LN Rating ↓</option><option value="title:asc">曲名 A–Z</option><option value="beatmapId:desc">谱面 ID ↓</option></select></div></div>
+        <details class="expression-filter"><summary>表达式筛选与收藏夹导出</summary><p class="helper">例如 <code>keys == 7 &amp;&amp; rating &gt;= 10 &amp;&amp; rating &lt; 20</code>；支持 &amp;&amp;、||、括号、文字包含 ~ 及 hasTag("density")。时长 duration 单位为毫秒。</p><div class="filter-expression-controls"><input id="expression" aria-label="筛选表达式" placeholder="keys == 7 &amp;&amp; rating &gt;= 10"><button class="button secondary" id="apply-expression">应用筛选</button></div><div class="filter-expression-controls"><input id="filter-name" aria-label="筛选收藏夹名" value="!7K 练习"><button class="button secondary" id="filter-collection">将筛选结果创建为收藏夹</button></div></details>
         <div class="table-shell"><table class="library-table"><thead><tr><th class="index-col">#</th><th>谱面 <span class="muted">/ BEATMAP</span></th><th>键数</th><th class="number">SPM ★</th><th class="number">RC</th><th class="number">LN</th><th>主要键型</th><th class="number">谱面 ID</th></tr></thead><tbody id="library-rows"></tbody></table>
           <div id="empty-library" class="empty-state"><div class="lane-art" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><h2>把你的谱面，整理成下一步。</h2><p>连接 osu!stable 文件夹，开始第一次 SPM 分析。<br>谱面文件与原版星数不会被改动。</p><button class="button primary" id="empty-connect">连接谱面库 →</button><small>支持原生 4K · 6K · 7K，分类预设仅适用于 7K</small></div>
         </div>
@@ -37,12 +40,28 @@
         <details id="scan-issues" hidden><summary id="issues-summary">分析报告</summary><div id="issues-list"></div></details>
       </section>
 
+      <section id="panel-rating" class="panel" hidden>
+        <div class="page-heading"><div><div class="eyebrow">SPM RATING, IN YOUR GAME</div><h1>游戏内难度重排<span class="heading-dot">.</span></h1><p>把 SPM 星数写入 osu!.db，让游戏也按 SPM 难度选谱。</p></div></div>
+        <div class="notice subtle">仅修改原生 4K / 6K / 7K mania 的对应星数，不改谱面和成绩。写入前自动备份；请完全退出 osu!。F5 重建或游戏重新计算星数后，可再次应用缓存结果。</div>
+        <div class="settings-section"><div><h2>选择要重排的速率</h2><p>使用设置中选定的 Detailed / Compact 模型。<br>已有结果直接复用，只计算缺失或改动的谱面。</p></div><div><div class="rate-options"><label><input type="checkbox" name="rating-rate" value="1" checked> NM</label><label><input type="checkbox" name="rating-rate" value="0.75"> HT</label><label><input type="checkbox" name="rating-rate" value="1.5"> DT / NC</label></div><p class="helper">首次选择尚未分析的速率需要计算；不会重新计算已有的 NM。准备结果不会替换谱面库当前视图。</p><button id="rating-prepare" class="button primary">复用缓存并预览 →</button></div></div>
+        <div id="rating-result" hidden></div><button id="rating-write" class="button primary" disabled>检查并写入游戏星数 →</button>
+        <div class="recovery-section"><div><h2>恢复游戏数据库</h2><p class="muted">恢复整个 osu!.db，包括当时的星数、评级和谱面记录；之后的数据库更改也会回退。当前文件会另行备份。</p></div><div><select id="database-backup" aria-label="选择游戏数据库备份"><option value="">暂无备份</option></select><button id="database-restore" class="button secondary" disabled>恢复此备份</button></div></div>
+      </section>
+
+      <section id="panel-grade" class="panel" hidden>
+        <div class="page-heading"><div><div class="eyebrow">YOUR SCORES, YOUR SCALE</div><h1>成绩评级<span class="heading-dot">.</span></h1><p>按本地 mania 成绩的准确率，自定义游戏内评级。</p></div></div>
+        <div class="notice subtle">读取 scores.db，仅把最佳评级及所选游玩状态写入 osu!.db，不改分数或回放。100% 为 SS；低于 D 门限不显示评级。参考并改编自 zzzzv / OsuManiaToolbox。</div>
+        <div class="settings-section"><div><h2>准确率门限</h2><p>同一谱面取符合策略的最佳评级。<br>门限从 S 到 D 递减。</p></div><div class="grade-thresholds"><label>S<input id="grade-S" type="number" min="0" max="100" step="0.1" value="99"></label><label>A<input id="grade-A" type="number" min="0" max="100" step="0.1" value="98"></label><label>B<input id="grade-B" type="number" min="0" max="100" step="0.1" value="96"></label><label>C<input id="grade-C" type="number" min="0" max="100" step="0.1" value="93"></label><label>D<input id="grade-D" type="number" min="0" max="100" step="0.1" value="88"></label></div></div>
+        <div class="settings-section"><div><h2>特殊成绩与游玩状态</h2><p>NF → EZ → HT 顺序应用特殊策略。<br>“忽略”表示此成绩不参与评级。</p></div><div class="settings-fields"><label>NF<select id="grade-nf"></select></label><label>EZ<select id="grade-ez"></select></label><label>HT<select id="grade-ht"></select></label><label>最近游玩时间<select id="grade-last"><option value="keep">保持不变</option><option value="accuracy">最高准确率的成绩时间</option><option value="score">最高分数的成绩时间</option></select></label><label class="checkbox-label"><input id="grade-unplayed" type="checkbox"> 无本地成绩时标为未游玩</label><button id="grade-prepare" class="button primary">预览评级变更 →</button></div></div>
+        <div id="grade-result" hidden></div><button id="grade-write" class="button primary" disabled>检查并写入成绩评级 →</button>
+      </section>
+
       <section id="panel-creator" class="panel" hidden>
         <div class="page-heading"><div><div class="eyebrow">FROM PATTERNS TO COLLECTIONS</div><h1>收藏夹创建器<span class="heading-dot">.</span></h1><p>先看边界，再决定哪些谱面入选。</p></div><span class="pill">7K ONLY</span></div>
-        <div class="preset-banner"><div class="preset-icon">⊞</div><div><strong id="default-preset-name">!SPM Box · 全部 7K 键型</strong><p>按 TagClassifier 原始判定，一次创建 RC / LN / Hybrid 总类及子类，共 21 个收藏夹。空分类也会创建。</p></div><button class="button secondary" id="all-preset">应用默认预设</button></div>
+        <div class="preset-banner"><div class="preset-icon">⊞</div><div><strong id="default-preset-name">!7K 全部键型</strong><p>按整谱判定创建 RC / LN / Hybrid 总类及子类，共 18 个收藏夹。排除 RC / LN Wildcard 和 Break；空分类也会创建。</p></div><button class="button secondary" id="all-preset">应用默认预设</button></div>
         <div class="creator-layout">
           <div class="tag-picker"><div class="section-caption"><strong>分类键型</strong><button class="text-button" id="toggle-tags">全选 / 取消</button></div><div id="tag-rules"></div></div>
-          <div class="threshold-workbench"><div class="section-caption"><span class="eyebrow">THRESHOLD LAB</span><span id="selected-count">21 个已选分类</span></div><h2 id="active-tag">RC</h2><p id="tag-family" class="muted">RC · 7K</p>
+          <div class="threshold-workbench"><div class="section-caption"><span class="eyebrow">THRESHOLD LAB</span><span id="selected-count">18 个已选分类</span></div><h2 id="active-tag">RC</h2><p id="tag-family" class="muted">RC · 7K</p>
             <div class="rule-controls"><label>入选规则<select id="rule-mode"><option value="upstream">TagClassifier 默认判定</option><option value="threshold">单维数值阈值</option></select></label><label><span>阈值 <span class="muted">%</span></span><input id="threshold" type="number" min="0" max="100" step="0.1" value="25" disabled></label><button class="text-button" id="reset-rule">恢复默认</button></div>
             <p id="threshold-explanation" class="helper">默认判定保留上游的先验、增补与混合门控；它不等价于统一百分比阈值。</p>
             <div class="workbench-actions"><span id="preview-context" class="muted">预览使用已完成的分析结果</span><button class="button secondary" id="preview">预览已选分类 →</button></div>
@@ -55,7 +74,7 @@
 
       <section id="panel-managed" class="panel" hidden>
         <div class="page-heading"><div><div class="eyebrow">ONLY WHAT BELONGS TO SPM BOX</div><h1>收藏夹管理<span class="heading-dot">.</span></h1><p>你的收藏夹，始终由你掌控。</p></div><button id="refresh-managed" class="button secondary">刷新列表 ↻</button></div>
-        <div class="notice subtle">只有名称标识、管理记录和谱面列表均匹配的收藏夹才能被更新或删除。手动修改过的收藏夹会被保护。</div>
+        <div class="notice subtle">管理标识保存在 collection.db.spmbox.json，不在收藏夹名后堆长串。只有记录、名称和谱面列表匹配时才能更新或删除；同名用户收藏夹不会被接管。请保留此记录文件。</div>
         <div id="managed-path" class="mono path-display"></div><div id="managed-list" class="managed-list"></div>
         <div class="manage-actions"><button id="delete-managed" class="button danger" disabled>删除选中的自动收藏夹</button><button id="open-backups" class="button secondary">打开备份文件夹 ↗</button></div>
         <div class="recovery-section"><div><h2>恢复收藏夹</h2><p class="muted">恢复整个 collection.db 及其管理标识；之后新增的手动收藏夹也会被回退。恢复前仍会备份当前文件。</p></div><div><select id="backup-select" aria-label="选择收藏夹备份"><option value="">暂无备份</option></select><button id="restore" class="button secondary" disabled>恢复此备份</button></div></div>
@@ -64,8 +83,8 @@
       <section id="panel-settings" class="panel" hidden>
         <div class="page-heading"><div><div class="eyebrow">BUILT AROUND SPM</div><h1>设置与关于<span class="heading-dot">.</span></h1><p>保持算法原貌，把时间花在打谱上。</p></div></div>
         <div class="settings-section"><div><h2>谱面分析</h2><p>修改算法或速率后，回到谱面库重新分析。<br>已缓存的其他组合仍然保留。</p></div><div class="settings-fields"><label>SPM Rating 模型<select id="model"><option value="detail">Detailed · 完整模型（默认）</option><option value="compact">Compact · 轻量模型</option></select></label><label>播放速率<select id="rate"><option value="1">NM · 1.00×</option><option value="1.5">DT / NC · 1.50×</option><option value="0.75">HT · 0.75×</option></select></label><label>分析并行数<select id="workers"><option value="1">1 · 最低占用</option><option value="2">2</option><option value="4">4 · 推荐</option><option value="8">8 · 实际最多 4，按 CPU 限制</option></select></label><button id="save-settings" class="button primary">保存分析设置</button></div></div>
-        <div class="settings-section"><div><h2>缓存与数据</h2><p>文件大小、修改时间和变更时间不变的谱面直接复用结果。<br>新建或改动的谱面才会交给后台分析。</p></div><div><p>缓存按算法版本、模型、速率及绝对路径隔离。<br>收藏夹备份保存在 osu! 目录下的 <code>.spmbox-backups</code>。</p><button id="open-data" class="button secondary">打开应用数据文件夹 ↗</button></div></div>
-        <div class="settings-section"><div><h2>SPM Box <span class="muted">0.1.0</span></h2><p>MIT License · © 2026 Ist1na</p></div><div><p>SPM Rating 1.2.0-rc3 / SPM Submodel<br>SPMTagClassifier 1.2.4 · pinned b311c40<br>JavaScript 集成源：SPM Map Analyser b074e0f</p><p class="muted">功能参考 zzzzv / OsuManiaToolbox，独立实现桌面工具。<br>4K / 6K 可浏览原生粗分类；分类收藏夹仅使用 7K。<br>支持 osu!stable 的 collection.db，不写入 lazer 数据库。</p><button id="about-repo" class="text-button">源代码与第三方署名 ↗</button></div></div>
+        <div class="settings-section"><div><h2>缓存与数据</h2><p>界面、分类列表与命名更新不会清空分析。<br>文件没改、算法没变，就直接复用。</p></div><div><p>旧 adapter 1–3 缓存自动迁移；极少数旧无标签结果单独补算。<br>收藏夹备份：<code>.spmbox-backups</code>；游戏数据库备份：<code>.spmbox-db-backups</code>。</p><button id="open-data" class="button secondary">打开应用数据文件夹 ↗</button></div></div>
+        <div class="settings-section"><div><h2>SPM Box <span class="muted">0.1.0</span></h2><p>MIT License · © 2026 Ist1na<br>评级逻辑 © 2026 zzzzv</p></div><div><p>SPM Rating 1.2.0-rc3 / SPM Submodel<br>SPMTagClassifier 1.2.4 · pinned b311c40<br>JavaScript 集成源：SPM Map Analyser b074e0f</p><p class="muted">独立桌面实现；功能参考 OsuManiaToolbox，成绩评级逻辑由其改编。<br>感谢 zzzzv；完整原项目 MIT 许可随程序保留。<br>支持 stable 数据库，不写入 lazer 数据库。</p><button id="about-repo" class="text-button">源代码与第三方署名 ↗</button></div></div>
       </section>
     </main>
   </div>
