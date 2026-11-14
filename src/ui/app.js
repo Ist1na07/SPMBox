@@ -3,7 +3,7 @@ const $$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>v==null?'—':Number(v).toFixed(2);
 const integer=v=>Number(v).toLocaleString('en-US');
-let state,tagRules=[],activeTag='chordjack',ready=null,busy=false,page=0,keys=0,total=0,queryVersion=0,lastRows=[],managedRows=[],modalAction;
+let state,tagRules=[],activeTag='rc',ready=null,busy=false,page=0,keys=0,total=0,queryVersion=0,lastRows=[],managedRows=[],modalAction;
 let toastTimer,searchTimer;
 async function api(name,...args){const r=await window.spm[name](...args);if(!r.ok)throw Error(r.error);return r.value;}
 function toast(text,error=false){clearTimeout(toastTimer);$('#toast').textContent=text;$('#toast').classList.toggle('error',error);$('#toast').hidden=false;toastTimer=setTimeout(()=>$('#toast').hidden=true,error?10000:6000);}
@@ -78,15 +78,20 @@ window.spm.onProgress(p=>{
 function invalidate(){ready=null;$('#review').disabled=true;$('#boundary-preview').hidden=true;$('#preview-empty').hidden=false;}
 function selectedRules(){return tagRules.filter(r=>r.enabled).map(({tag,mode,threshold})=>({tag,mode,threshold}));}
 function renderTags(){
-  $('#tag-rules').innerHTML=tagRules.map(r=>`<div class="tag-rule ${r.tag===activeTag?'active':''}"><input type="checkbox" data-enable="${esc(r.tag)}" aria-label="选择 ${esc(label(r.tag))}" ${r.enabled?'checked':''}><button data-tag="${esc(r.tag)}">${esc(label(r.tag))}</button><small>${r.mode==='upstream'?'AUTO':r.threshold+'%'}</small></div>`).join('');
+  $('#tag-rules').innerHTML=tagRules.map(r=>{const tag=state.tags.find(t=>t.id===r.tag);return `<div class="tag-rule ${tag.kind==='family'?'family-rule':tag.parent?'sub-rule':''} ${r.tag===activeTag?'active':''}"><input type="checkbox" data-enable="${esc(r.tag)}" aria-label="选择 ${esc(label(r.tag))}" ${r.enabled?'checked':''}><button data-tag="${esc(r.tag)}">${esc(label(r.tag))}</button><small>${tag.kind==='family'?'总类 · ':''}${r.mode==='upstream'?'AUTO':r.threshold+'%'}</small></div>`;}).join('');
   $$('#tag-rules [data-tag]').forEach(b=>b.addEventListener('click',()=>{activeTag=b.dataset.tag;renderTags();renderActiveRule();renderBoundary();}));
   $$('#tag-rules [data-enable]').forEach(c=>c.addEventListener('change',()=>{tagRules.find(r=>r.tag===c.dataset.enable).enabled=c.checked;invalidate();$('#selected-count').textContent=selectedRules().length+' 个已选分类';}));
   $('#selected-count').textContent=selectedRules().length+' 个已选分类';
 }
 function renderActiveRule(){
-  const rule=tagRules.find(r=>r.tag===activeTag);$('#active-tag').textContent=label(activeTag);$('#tag-family').textContent=(state.tags.find(t=>t.id===activeTag)?.family??'')+' · 7K';
+  const rule=tagRules.find(r=>r.tag===activeTag),tag=state.tags.find(t=>t.id===activeTag);$('#active-tag').textContent=label(activeTag);$('#tag-family').textContent=tag.kind==='family'?'7K 总类 · RC / LN / Hybrid 并列':tag.parent?`${label(tag.parent)} 子类 · 7K`:'其他 · 7K';
+  $('#rule-mode option[value="upstream"]').textContent=tag.kind==='family'?'TagClassifier 整谱类型判定':'TagClassifier 默认判定';
   $('#rule-mode').value=rule.mode;$('#threshold').value=rule.threshold;$('#threshold').disabled=rule.mode==='upstream';
   const special=['break','wildcard'].includes(activeTag);
+  if(tag.kind==='family'){
+    $('#threshold-explanation').textContent=rule.mode==='upstream'?'按 TagClassifier 的整谱类型归入 RC、LN 或 Hybrid，不使用 Rating 的 RC/LN 类型。默认总类互斥；细分类保留各自的原始多标签判定。':activeTag==='hybrid'?'Hybrid 分数为 min(RC, LN) 的负担支持占比；分数 ≥ 阈值即入选。数值阈值模式允许总类之间重叠。':'使用对应家族的联合负担支持占比，分数 ≥ 阈值即入选。数值阈值模式允许总类之间重叠。';
+    return;
+  }
   $('#threshold-explanation').textContent=rule.mode==='upstream'?'默认判定保留上游的先验、增补与混合门控；它不等价于统一百分比阈值。数值模式初值取保留门限 25%，Hybrid 取双族门限 10%。':activeTag==='hybrid'?'Hybrid 分数为 min(RC, LN) 的负担支持占比；分数 ≥ 阈值即入选。这样纯 RC 或纯 LN 不会因家族总和而被误当作 Hybrid。':special?'此类没有独立的难度积分分支；数值为时长加权局部支持。分数 ≥ 阈值即入选，仅使用 7K。':['rc mix','ln mix'].includes(activeTag)?'数值模式使用对应家族（RC 或 LN）的联合负担支持占比；不再要求上游的混合多样性门控。分数 ≥ 阈值即入选。':'使用此键型的单一负担占比分数，分数 ≥ 阈值即入选。各键型占比可能重叠；不是正确概率。';
 }
 function renderBoundary(){
@@ -95,7 +100,7 @@ function renderBoundary(){
   const edgeRow=r=>`<div class="boundary-row"><div><strong title="${esc(r.title+' ['+r.difficulty+']')}">${esc(r.title)}</strong><div class="meta">[${esc(r.difficulty)}] · ID ${r.beatmapId>0?r.beatmapId:'未提交'}${r.beatmapId<=0?' · '+esc(r.md5.slice(0,8)):''}</div></div><div class="boundary-score">${r.score.toFixed(2)}%</div></div>`;
   $('#inside-rows').innerHTML=g.inside.map(edgeRow).join('')||'<div class="boundary-empty">没有入选谱面</div>';
   $('#outside-rows').innerHTML=g.outside.map(edgeRow).join('')||'<div class="boundary-empty">没有未入选谱面</div>';
-  $('#boundary-note').textContent=g.mode==='upstream'?'默认模式按原始标签判定。由于先验与混合门控，未入选分数可能高于入选分数。':`当前阈值 ${g.threshold}%（含等号）。仅展示边界两侧各 5 张；同一 MD5 在收藏夹中只保留一次。`;
+  $('#boundary-note').textContent=g.mode==='upstream'?(state.tags.find(t=>t.id===g.tag).kind==='family'?'按整谱类型归属生成总类，分数仅用于边界排序，不是固定的入选门限。':'默认模式按原始标签判定。由于先验与混合门控，未入选分数可能高于入选分数。'):`当前阈值 ${g.threshold}%（含等号）。仅展示边界两侧各 5 张；同一 MD5 在收藏夹中只保留一次。`;
 }
 async function doPreview(){
   if(busy)throw Error('请等待分析完成');
@@ -111,7 +116,7 @@ function openConfirm(title,html,confirmation,buttonText,fn){
 }
 function review(){
   if(!ready)throw Error('请先预览');const current=ready;
-  openConfirm('确认创建收藏夹',`<p>将写入 <code>${esc(current.file)}</code>。只更新拥有本工具标识且未经手动修改的收藏夹。现有数据库及标识文件会先备份。</p>${current.errors||current.warnings?`<div class="notice">本次分析有 ${current.errors} 张失败、${current.warnings} 张分类失败；这些谱面不会进入分类收藏夹。</div>`:''}<div class="review-list">${current.groups.map((g,i)=>`<div class="review-row"><span>${current.actions[i].type==='create'?'新建':'更新'} · ${esc(current.actions[i].name.split(' [SPMBox:')[0])}${current.actions[i].previousName?'（添加排序前缀）':''}${g.count===0?'（空）':''}</span><span>${integer(g.count)} maps</span></div>`).join('')}</div>`,
+  openConfirm('确认创建收藏夹',`<p>将写入 <code>${esc(current.file)}</code>。只更新拥有本工具标识且未经手动修改的收藏夹。现有数据库及标识文件会先备份。</p>${current.errors||current.warnings?`<div class="notice">本次分析有 ${current.errors} 张失败、${current.warnings} 张分类失败；这些谱面不会进入分类收藏夹。</div>`:''}<div class="review-list">${current.groups.map((g,i)=>`<div class="review-row"><span>${current.actions[i].type==='create'?'新建':'更新'} · ${esc(current.actions[i].name.split(' [SPMBox:')[0])}${current.actions[i].previousName?'（更新分类名称）':''}${g.count===0?'（空）':''}</span><span>${integer(g.count)} maps</span></div>`).join('')}</div>`,
     '我已完全退出 osu!，并确认上述分类和空收藏夹。','备份并写入',async()=>{
       const result=await api('write',current.token);invalidate();toast(`已保存 ${result.actions.length} 个收藏夹。备份：${result.backup}`);await loadManaged();
     });
@@ -142,7 +147,7 @@ async function init(){
   applyState(await api('state'));
   tagRules=state.tags.map(t=>({tag:t.id,mode:'upstream',threshold:t.defaultThreshold,enabled:false,...state.settings.rules?.find(r=>r.tag===t.id),...(state.settings.rules?.some(r=>r.tag===t.id)?{enabled:true}:{})}));
   if(!state.settings.rules)tagRules.forEach(r=>r.enabled=true);
-  $('#tag-filter').innerHTML='<option value="">全部键型</option>'+[...state.tags.map(t=>[t.id,t.label]),['jack','Jack (4K/6K)'],['stamina','Chordstream (4K/6K)'],['ln','LN (4K/6K)']].map(([id,text])=>`<option value="${esc(id)}">${esc(text)}</option>`).join('');
+  $('#tag-filter').innerHTML='<option value="">全部键型</option>'+[...state.tags.map(t=>[t.id,t.kind==='family'?t.label+' · 7K 总类':t.parent?label(t.parent)+' / '+t.label:t.label]),['jack','Jack (4K/6K)'],['stamina','Chordstream (4K/6K)'],['native:ln','LN (4K/6K)']].map(([id,text])=>`<option value="${esc(id)}">${esc(text)}</option>`).join('');
   renderTags();renderActiveRule();await loadRows();
   $$('.nav').forEach(b=>b.addEventListener('click',action(()=>switchPanel(b.dataset.panel))));
   on('#choose-root','click',chooseRoot);on('#scan','click',scan);on('#cancel','click',()=>api('cancel'));

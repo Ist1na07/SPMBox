@@ -592,6 +592,15 @@ summary{
 .tag-rule.active{
   background:#b6efb310;
   color:var(--mint)}
+.tag-rule.family-rule{
+  margin-top:7px;
+  border-top:1px solid var(--line)}
+.tag-rule.family-rule button{
+  font-weight:600;
+  color:var(--ink)}
+.tag-rule.sub-rule{
+  margin-left:13px;
+  border-left:1px solid var(--line)}
 input[type=checkbox]{
   accent-color:var(--mint);
   width:13px;

@@ -6,6 +6,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {Library}=require('../src/core/library.cjs');
 const {fixture}=require('./fixtures.cjs');
+const {ENGINE_VERSION}=require('../src/core/catalog.cjs');
 test('cold analysis, persistent warm hits, edited/deleted files and option-specific invalidation',async t=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'spmbox-cache-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
   const songs=path.join(root,'Songs');await fs.mkdir(songs);const data=path.join(root,'cache');
@@ -33,4 +34,13 @@ test('cancel retains prior complete library; errors and unsupported charts repor
   for(let i=0;i<6;i++)await fs.writeFile(path.join(songs,`new${i}.osu`),fixture({holds:true,count:500}));
   const pending=lib.scan(songs,opts,()=>lib.cancel());const cancelled=await pending;
   assert.equal(cancelled.complete,false);assert.equal(lib.rows,before);
+});
+test('old cache schema is reanalysed to obtain the classifier family instead of guessing from rating',async t=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'spmbox-family-cache-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const songs=path.join(root,'Songs'),data=path.join(root,'data');await fs.mkdir(songs);await fs.writeFile(path.join(songs,'a.osu'),fixture());
+  const lib=new Library(data),opts={model:'detail',rate:1,workers:1};await lib.scan(songs,opts);
+  const oldVersion=ENGINE_VERSION.replace('adapter-3','adapter-2');
+  for(const file of ['analysis-cache.ndjson','library.json']){const target=path.join(data,file);await fs.writeFile(target,(await fs.readFile(target,'utf8')).replaceAll(ENGINE_VERSION,oldVersion));}
+  const upgraded=new Library(data);await upgraded.load();assert.equal(upgraded.rows.length,0);
+  const result=await upgraded.scan(songs,opts);assert.equal(result.hits,0);assert.equal(result.rows[0].classificationFamily,'RC');
 });

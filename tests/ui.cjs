@@ -40,22 +40,27 @@ async function waitFor(page,fn){await page.waitForFunction(fn,null,{timeout:6000
     await page.locator('#search').fill('');
     await page.locator('[data-panel="creator"]').click();
     assert.equal(await page.locator('#default-preset-name').innerText(),'!SPM Box · 全部 7K 键型');
+    assert.equal(await page.locator('.family-rule').count(),3);
     await page.locator('#all-preset').click();await page.locator('#preview').click();
     await waitFor(page,()=>!document.querySelector('#review').disabled);
-    await page.locator('[data-tag="speed"]').click();await page.screenshot({path:path.join(output,'creator.png')});
+    await page.locator('[data-tag="rc"]').click();assert.match(await page.locator('#tag-family').innerText(),/总类/);
+    await page.screenshot({path:path.join(output,'family-creator.png')});
+    await page.locator('[data-tag="speed"]').click();assert.match(await page.locator('#tag-family').innerText(),/RC 子类/);
+    await page.screenshot({path:path.join(output,'creator.png')});
     await page.locator('#rule-mode').selectOption('threshold');await page.locator('#threshold').fill('50');assert.equal(await page.locator('#review').isDisabled(),true);
     await page.locator('#preview').click();await waitFor(page,()=>!document.querySelector('#review').disabled);
     assert.match(await page.locator('#boundary-note').innerText(),/50%/);
     await page.locator('#review').click();await page.locator('#review-dialog').waitFor({state:'visible'});
-    assert.equal(await page.locator('.review-row').count(),19);assert.equal(await page.locator('#dialog-confirm').isDisabled(),true);
+    assert.equal(await page.locator('.review-row').count(),21);assert.equal(await page.locator('#dialog-confirm').isDisabled(),true);
     for(const text of await page.locator('.review-row').allTextContents())assert.match(text,/!SPM Box · 7K · /);
+    for(const name of ['RC','LN','Hybrid'])assert.ok((await page.locator('.review-row').allTextContents()).some(text=>text.includes('7K · '+name+' · detail-1x')));
     await page.screenshot({path:path.join(output,'prefixed-review.png')});
     await page.locator('#confirm-safe').check();await page.locator('#dialog-confirm').click();
     await page.locator('#review-dialog').waitFor({state:'hidden'});
     // The runtime must refuse a real running osu! process, even in isolated tests.
     const bytes=decode(await fs.readFile(path.join(temp,'collection.db')));
     if(bytes.collections.length===1){assert.match(await page.locator('#toast').innerText(),/退出 osu!/);console.log('Write UI correctly blocked by running osu!; core transactions covered by unit tests.');}
-    else{assert.equal(bytes.collections.length,20);assert.equal(bytes.collections[0].name,'!SPM Box · 7K · Speed');for(const c of bytes.collections.slice(1))assert.ok(c.name.startsWith('!SPM Box · 7K · '));}
+    else{assert.equal(bytes.collections.length,22);assert.equal(bytes.collections[0].name,'!SPM Box · 7K · Speed');for(const c of bytes.collections.slice(1))assert.ok(c.name.startsWith('!SPM Box · 7K · '));assert.ok(bytes.collections.some(c=>c.name.includes('7K · RC · Speed ·')));assert.ok(bytes.collections.some(c=>c.name.includes('7K · LN · Coordination ·')));}
     await page.locator('[data-panel="managed"]').click();await page.locator('#managed-list .managed-item').first().waitFor();
     assert.equal(await page.locator('#managed-list input').first().isDisabled(),true);
     await page.screenshot({path:path.join(output,'managed.png')});
@@ -65,6 +70,6 @@ async function waitFor(page,fn){await page.waitForFunction(fn,null,{timeout:6000
     await page.locator('[data-panel="settings"]').click();await page.locator('#model').selectOption('compact');await page.locator('#rate').selectOption('1.5');await page.locator('#save-settings').click();
     await page.locator('#global-note').waitFor({state:'visible'});
     await page.locator('[data-panel="creator"]').click();await page.locator('#preview').click();await waitFor(page,()=>document.querySelector('#toast').textContent.includes('重新分析'));
-    assert.deepEqual(errors,[]);console.log((packaged?'PACKAGED ':'')+'UI passed: scan, sorting, search, details, 19-tag preset, scalar threshold, boundary IDs, confirmation, ownership, narrow layout, stale analysis guard.');
+    assert.deepEqual(errors,[]);console.log((packaged?'PACKAGED ':'')+'UI passed: scan, sorting, search, details, 21-category preset, scalar threshold, boundary IDs, confirmation, ownership, narrow layout, stale analysis guard.');
   }finally{await app.close();await fs.rm(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

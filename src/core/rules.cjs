@@ -2,7 +2,10 @@
 const {rules:validateRules,TAGS}=require('./catalog.cjs');
 function score(row,tag) {const v=row.scores?.[tag];return Number.isFinite(v)?v:0;}
 function qualifies(row,rule) {
-  return row.keys===7&&row.classified&&(rule.mode==='upstream'?row.tags.includes(rule.tag):score(row,rule.tag)>=rule.threshold);
+  if(row.keys!==7||!row.classified)return false;
+  if(rule.mode==='threshold')return score(row,rule.tag)>=rule.threshold;
+  const family={rc:'RC',ln:'LN',hybrid:'Hybrid'}[rule.tag];
+  return family?row.classificationFamily===family:row.tags.includes(rule.tag);
 }
 function preview(rows,input,limit=5) {
   return validateRules(input).map(rule=>{

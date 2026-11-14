@@ -35,6 +35,8 @@ function analyse(buffer, options) {
   // 7K burden shares overlap; native 4K/6K instead expose a normalized composition.
   const scores = o?.percentages ? {...o.percentages} : Object.fromEntries(Object.entries(o?.composition??{}).map(([k,v])=>[k,v*100]));
   if (keys===7 && o) {
+    scores.rc=(o.familyMass?.rc??0)*100;
+    scores.ln=(o.familyMass?.ln??0)*100;
     for (const [k,v] of Object.entries(o.labelPercentages??{})) if (k!=='hybrid'&&Number.isFinite(v)) scores[k]=v;
     scores['rc mix'] ??= (o.familyMass?.rc??0)*100;
     scores['ln mix'] ??= (o.familyMass?.ln??0)*100;
@@ -59,6 +61,7 @@ function analyse(buffer, options) {
     family:!result.hasLn||result.lnCov<.18?'RC':result.lnCov>.68?'LN':'HB',notes:result.nNotes,duration:meta.durationMs/options.rate,
     bpm:meta.bpm?meta.bpm*options.rate:null,
     tags:o?.tags??[],scores,classified:!!tags,classificationError,
+    classificationFamily:({rc:'RC',ln:'LN',hb:'Hybrid'})[o?.sort]??null,
     model:options.model,rate:options.rate,
   };
 }

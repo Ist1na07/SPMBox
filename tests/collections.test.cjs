@@ -5,7 +5,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const c=require('../src/core/collections.cjs');
-const {TAGS,COLLECTION_PREFIX,DEFAULT_PRESET_NAME}=require('../src/core/catalog.cjs');
+const {TAGS,COLLECTION_PREFIX,DEFAULT_PRESET_NAME,collectionLabel}=require('../src/core/catalog.cjs');
 const h='a'.repeat(32),h2='b'.repeat(32),scope='detail-1x';
 const group={tag:'speed',label:'Speed',mode:'upstream',threshold:25,hashes:[h]};
 async function sandbox(t){const root=await fs.mkdtemp(path.join(os.tmpdir(),'spmbox-collections-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));return path.join(root,'collection.db');}
@@ -34,8 +34,21 @@ test('every default collection and the preset share the sortable prefix',async t
   const result=c.plan(initial,file,groups,scope);
   assert.equal(COLLECTION_PREFIX,'!SPM Box · ');
   assert.equal(DEFAULT_PRESET_NAME,'!SPM Box · 全部 7K 键型');
-  assert.equal(result.db.collections.length,19);
+  assert.equal(result.db.collections.length,21);
+  assert.equal(collectionLabel('rc'),'RC');assert.equal(collectionLabel('ln'),'LN');assert.equal(collectionLabel('hybrid'),'Hybrid');
+  assert.equal(collectionLabel('speed'),'RC · Speed');assert.equal(collectionLabel('coordination'),'LN · Coordination');
   for(const collection of result.db.collections)assert.ok(collection.name.startsWith(COLLECTION_PREFIX+'7K · '));
+});
+test('flat owned child names acquire their parent without duplicating collections or changing UUIDs',async t=>{
+  const file=await sandbox(t),initial=await c.readState(file),old=c.plan(initial,file,[group],scope);
+  const original=old.db.collections[0].name.replace(' · RC · Speed · ',' · Speed · ');
+  old.db.collections[0].name=original;old.manifest.entries[0].name=original;await c.commit(file,initial,old);
+  const state=await c.readState(file),updated=c.plan(state,file,[group],scope);
+  assert.equal(updated.db.collections.length,1);assert.equal(updated.actions[0].previousName,original);
+  assert.equal(updated.db.collections[0].name,original.replace(' · Speed · ',' · RC · Speed · '));
+  await c.commit(file,state,updated);const now=await c.readState(file);
+  assert.equal(c.managedState(now.db,now.manifest)[0].managed,true);
+  const again=c.plan(now,file,[group],scope);assert.equal(again.actions[0].previousName,undefined);
 });
 test('verified legacy names migrate once, preserving markers; modified or colliding collections are protected',async t=>{
   const file=await sandbox(t),initial=await c.readState(file),legacy=c.plan(initial,file,[group],scope);

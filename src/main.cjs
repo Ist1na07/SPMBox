@@ -8,7 +8,7 @@ const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {Library}=require('./core/library.cjs');
 const {TAGS,ENGINE_VERSION,DEFAULT_PRESET_NAME,options:validateOptions,rules:validateRules}=require('./core/catalog.cjs');
-const {preview}=require('./core/rules.cjs');
+const {preview,qualifies}=require('./core/rules.cjs');
 const collections=require('./core/collections.cjs');
 const {atomicWrite,readJson}=require('./core/storage.cjs');
 const testMode=!app.isPackaged&&process.env.SPMBOX_TEST==='1';
@@ -36,7 +36,8 @@ function query(input={}){
   const keys=Number(input.keys)||0,tag=typeof input.tag==='string'?input.tag:'';
   const sort=['rating','rcRating','lnRating','title','beatmapId'].includes(input.sort)?input.sort:'rating';
   const direction=input.direction==='asc'?1:-1;
-  const list=library.rows.filter(r=>(!keys||r.keys===keys)&&(!tag||r.tags.includes(tag))&&(!q||`${r.artist} ${r.title} ${r.difficulty} ${r.creator} ${r.beatmapId}`.toLowerCase().includes(q)));
+  const matchesTag=r=>!tag||(TAGS.find(t=>t.id===tag)?.kind==='family'?qualifies(r,{tag,mode:'upstream'}):tag==='native:ln'?[4,6].includes(r.keys)&&r.tags.includes('ln'):r.tags.includes(tag));
+  const list=library.rows.filter(r=>(!keys||r.keys===keys)&&matchesTag(r)&&(!q||`${r.artist} ${r.title} ${r.difficulty} ${r.creator} ${r.beatmapId}`.toLowerCase().includes(q)));
   list.sort((a,b)=>{
     const x=a[sort],y=b[sort];if(x==null)return y==null?0:1;if(y==null)return -1;
     return (typeof x==='string'?x.localeCompare(y):x-y)*direction||a.file.localeCompare(b.file);
