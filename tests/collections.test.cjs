@@ -52,3 +52,15 @@ test('managed-only deletion and recovery after interrupted pair commit',async t=
   await fs.writeFile(file+'.spmbox.pending.json','{"backup":"interrupted"}');
   await c.restore(file,(await c.backups(file))[0]);now=await c.readState(file);assert.equal(now.db.collections.length,2);assert.equal(c.managedState(now.db,now.manifest)[1].managed,true);
 });
+test('sidecar replacement failure rolls back database and leaves paired recovery snapshot',async t=>{
+  const file=await sandbox(t);await fs.writeFile(file,c.encode({version:1,collections:[{name:'Keep',hashes:[h2]}]}));
+  const before=await c.readState(file),change=c.plan(before,file,[group],scope);
+  const original=fs.rename;let denied=false;
+  fs.rename=async(from,to)=>{
+    if(to===c.sidecar(file)&&!denied){denied=true;const error=Error('simulated sidecar failure');error.code='EACCES';throw error;}
+    return original(from,to);
+  };
+  try{await assert.rejects(c.commit(file,before,change),/simulated/);}finally{fs.rename=original;}
+  const after=await c.readState(file);assert.deepEqual(after.bytes,before.bytes);assert.equal(after.manifest,null);
+  assert.equal((await c.backups(file)).length,1);await assert.rejects(fs.stat(file+'.spmbox.pending.json'),{code:'ENOENT'});
+});

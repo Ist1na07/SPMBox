@@ -13,9 +13,16 @@ async function waitFor(page,fn){await page.waitForFunction(fn,null,{timeout:6000
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'SPM-Box-UI-'));
   const songs=path.join(temp,'Songs');await fs.mkdir(songs);
   const env={...process.env,SPMBOX_TEST:'1',SPMBOX_TEST_ROOT:temp,SPMBOX_TEST_DATA:path.join(temp,'app-data')};delete env.ELECTRON_RUN_AS_NODE;
-  const app=await electron.launch({args:[root],env});let page;
+  const packaged=process.env.SPMBOX_UI_PACKAGED==='1';
+  const app=await electron.launch({...(packaged?{executablePath:path.join(root,'dist/win-unpacked/SPM Box.exe')}:{ }),args:packaged?['--user-data-dir='+path.join(temp,'packaged-data')]:[root],env});let page;
   try{
     page=await app.firstWindow();await page.waitForSelector('#stat-total');await waitFor(page,()=>document.querySelector('#empty-connect')!==null);
+    if(packaged){
+      // Mock only the OS directory picker; the packaged IPC, filesystem, worker
+      // loading from app.asar and collection transaction paths remain real.
+      await app.evaluate(({dialog},root)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[root]});},temp);
+      await page.locator('#choose-root').click();await waitFor(page,()=>document.querySelector('#root-path').textContent.includes('Songs'));
+    }
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.screenshot({path:path.join(output,'empty.png')});
     const titles=['Prism Archive','Asterism','Signal / Noise','Silver Lining','Release Geometry','Sevenfold','Parallel Lines','Night Transit','Afterimage','Pulse Study','Glassworks','Uncharted'];
@@ -54,6 +61,6 @@ async function waitFor(page,fn){await page.waitForFunction(fn,null,{timeout:6000
     await page.locator('[data-panel="settings"]').click();await page.locator('#model').selectOption('compact');await page.locator('#rate').selectOption('1.5');await page.locator('#save-settings').click();
     await page.locator('#global-note').waitFor({state:'visible'});
     await page.locator('[data-panel="creator"]').click();await page.locator('#preview').click();await waitFor(page,()=>document.querySelector('#toast').textContent.includes('重新分析'));
-    assert.deepEqual(errors,[]);console.log('UI passed: scan, sorting, search, details, 19-tag preset, scalar threshold, boundary IDs, confirmation, ownership, narrow layout, stale analysis guard.');
+    assert.deepEqual(errors,[]);console.log((packaged?'PACKAGED ':'')+'UI passed: scan, sorting, search, details, 19-tag preset, scalar threshold, boundary IDs, confirmation, ownership, narrow layout, stale analysis guard.');
   }finally{await app.close();await fs.rm(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

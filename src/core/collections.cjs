@@ -125,7 +125,7 @@ async function commit(file,expected,change) {
     const snapshot=await saveSnapshot(file,expected);
     await atomicWrite(file+'.spmbox.pending.json',JSON.stringify({backup:snapshot.id}));
     try{
-      if(!await currentEquals(file,expected.bytes))throw Error('备份时收藏夹已变化，请重新预览');
+      if(!await currentEquals(file,expected.bytes)||JSON.stringify(await readJson(sidecar(file),null))!==JSON.stringify(expected.manifest))throw Error('备份时收藏夹或管理记录已变化，请重新预览');
       await writePair(file,change.db,change.manifest);
     }catch(e){
       // Nothing has been written by us if the optimistic recheck failed.

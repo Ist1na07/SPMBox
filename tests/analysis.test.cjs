@@ -37,3 +37,11 @@ test('19 preset categories, strict user-input validation',()=>{
   for(const threshold of [-1,101,NaN])assert.throws(()=>rules([{tag:'speed',mode:'threshold',threshold}]));
   assert.throws(()=>rules([]));assert.throws(()=>rules([{tag:'unknown',mode:'upstream',threshold:25}]));
 });
+test('default preset retains upstream tags; scalar Hybrid excludes pure-family charts',()=>{
+  const row={...analyse(Buffer.from(fixture()),{model:'detail',rate:1}),file:'fixture.osu'};
+  assert.equal(row.scores.hybrid,0);
+  const preset=preview([row],TAGS.map(t=>({tag:t.id,mode:'upstream',threshold:t.defaultThreshold})));
+  for(const g of preset)assert.equal(g.count,Number(row.tags.includes(g.tag)));
+  assert.equal(preview([row],[{tag:'hybrid',mode:'threshold',threshold:10}])[0].count,0);
+  assert.equal(preview([{...row,classified:false}],[{tag:'speed',mode:'threshold',threshold:0}])[0].count,0);
+});
