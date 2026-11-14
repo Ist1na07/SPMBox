@@ -16,6 +16,7 @@ function stale(){return state.options&&(state.options.model!==state.settings.mod
 function showNote(){const note=$('#global-note');note.hidden=!stale();note.textContent='目录、模型或速率已改变。当前仍显示上一次结果；请重新分析后再创建收藏夹。';}
 function applyState(next){
   state=next;
+  $('#default-preset-name').textContent=state.defaultPresetName;
   $('#app-version').textContent='v'+state.version;
   $('#nav-count').textContent=integer(state.count);
   $('#stat-total').textContent=integer(state.count);
@@ -110,7 +111,7 @@ function openConfirm(title,html,confirmation,buttonText,fn){
 }
 function review(){
   if(!ready)throw Error('请先预览');const current=ready;
-  openConfirm('确认创建收藏夹',`<p>将写入 <code>${esc(current.file)}</code>。只更新拥有本工具标识且未经手动修改的收藏夹。现有数据库及标识文件会先备份。</p>${current.errors||current.warnings?`<div class="notice">本次分析有 ${current.errors} 张失败、${current.warnings} 张分类失败；这些谱面不会进入分类收藏夹。</div>`:''}<div class="review-list">${current.groups.map((g,i)=>`<div class="review-row"><span>${current.actions[i].type==='create'?'新建':'更新'} · ${esc(g.label)}${g.count===0?'（空）':''}</span><span>${integer(g.count)} maps</span></div>`).join('')}</div>`,
+  openConfirm('确认创建收藏夹',`<p>将写入 <code>${esc(current.file)}</code>。只更新拥有本工具标识且未经手动修改的收藏夹。现有数据库及标识文件会先备份。</p>${current.errors||current.warnings?`<div class="notice">本次分析有 ${current.errors} 张失败、${current.warnings} 张分类失败；这些谱面不会进入分类收藏夹。</div>`:''}<div class="review-list">${current.groups.map((g,i)=>`<div class="review-row"><span>${current.actions[i].type==='create'?'新建':'更新'} · ${esc(current.actions[i].name.split(' [SPMBox:')[0])}${current.actions[i].previousName?'（添加排序前缀）':''}${g.count===0?'（空）':''}</span><span>${integer(g.count)} maps</span></div>`).join('')}</div>`,
     '我已完全退出 osu!，并确认上述分类和空收藏夹。','备份并写入',async()=>{
       const result=await api('write',current.token);invalidate();toast(`已保存 ${result.actions.length} 个收藏夹。备份：${result.backup}`);await loadManaged();
     });
@@ -150,7 +151,7 @@ async function init(){
   $$('#key-filter button').forEach(b=>b.addEventListener('click',action(()=>{keys=Number(b.dataset.keys);page=0;$$('#key-filter button').forEach(x=>x.classList.toggle('active',x===b));return loadRows();})));
   on('#prev-page','click',()=>{page--;return loadRows();});on('#next-page','click',()=>{page++;return loadRows();});
   on('#export','click',async()=>{const file=await api('export',currentQuery());if(file)toast('已导出：'+file);});
-  on('#all-preset','click',()=>{tagRules=state.tags.map(t=>({tag:t.id,mode:'upstream',threshold:t.defaultThreshold,enabled:true}));invalidate();renderTags();renderActiveRule();toast('已应用全部 7K 键型预设，预览后即可一次创建。');});
+  on('#all-preset','click',()=>{tagRules=state.tags.map(t=>({tag:t.id,mode:'upstream',threshold:t.defaultThreshold,enabled:true}));invalidate();renderTags();renderActiveRule();toast(`已应用「${state.defaultPresetName}」预设，预览后即可一次创建。`);});
   on('#toggle-tags','click',()=>{const enable=!tagRules.every(r=>r.enabled);tagRules.forEach(r=>r.enabled=enable);invalidate();renderTags();});
   on('#rule-mode','change',e=>{tagRules.find(r=>r.tag===activeTag).mode=e.target.value;invalidate();renderTags();renderActiveRule();});
   on('#threshold','input',e=>{tagRules.find(r=>r.tag===activeTag).threshold=Number(e.target.value);invalidate();renderTags();});

@@ -10,6 +10,8 @@ const TAGS = [
   ['hybrid','Hybrid','Mix'], ['break','Break','Other'],
 ].map(([id,label,family])=>({id,label,family,defaultThreshold:id==='hybrid'?10:25}));
 const ENGINE_VERSION = 'spm-b074e0f-tag-b311c40-adapter-2';
+const COLLECTION_PREFIX = '!SPM Box · ';
+const DEFAULT_PRESET_NAME = COLLECTION_PREFIX+'全部 7K 键型';
 function options(input = {}) {
   const model = input.model ?? 'detail', rate = Number(input.rate ?? 1);
   if (!['detail','compact'].includes(model) || ![0.75,1,1.5].includes(rate)) throw Error('不支持的算法或速率');
@@ -26,4 +28,4 @@ function rules(input) {
     return {tag:r.tag,mode:r.mode,threshold};
   });
 }
-module.exports = {TAGS,ENGINE_VERSION,options,rules};
+module.exports = {TAGS,ENGINE_VERSION,COLLECTION_PREFIX,DEFAULT_PRESET_NAME,options,rules};

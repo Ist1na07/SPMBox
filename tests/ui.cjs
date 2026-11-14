@@ -28,7 +28,7 @@ async function waitFor(page,fn){await page.waitForFunction(fn,null,{timeout:6000
     const titles=['Prism Archive','Asterism','Signal / Noise','Silver Lining','Release Geometry','Sevenfold','Parallel Lines','Night Transit','Afterimage','Pulse Study','Glassworks','Uncharted'];
     for(let i=0;i<titles.length;i++)await fs.writeFile(path.join(songs,`chart-${i}.osu`),fixture({title:titles[i],id:100000+i,keys:i===10?4:i===11?6:7,holds:i%3===0,step:55+i*9,count:300+i*14,chords:i%2+1}));
     // Ensure a manual collection with a similar display name is always protected.
-    await fs.writeFile(path.join(temp,'collection.db'),encode({version:20260101,collections:[{name:'SPM Box · 7K · Speed',hashes:['b'.repeat(32)]}]}));
+    await fs.writeFile(path.join(temp,'collection.db'),encode({version:20260101,collections:[{name:'!SPM Box · 7K · Speed',hashes:['b'.repeat(32)]}]}));
     await page.locator('#scan').click();await waitFor(page,()=>document.querySelector('#stat-total').textContent==='12');
     await waitFor(page,()=>!document.querySelector('#scan').disabled);
     assert.equal(await page.locator('#library-rows tr').count(),12);
@@ -38,7 +38,9 @@ async function waitFor(page,fn){await page.waitForFunction(fn,null,{timeout:6000
     await page.locator('#library-rows tr').click();await page.locator('#detail-dialog').waitFor({state:'visible'});
     assert.match(await page.locator('#detail-content').innerText(),/100000/);await page.locator('#detail-dialog .close-dialog').click();
     await page.locator('#search').fill('');
-    await page.locator('[data-panel="creator"]').click();await page.locator('#all-preset').click();await page.locator('#preview').click();
+    await page.locator('[data-panel="creator"]').click();
+    assert.equal(await page.locator('#default-preset-name').innerText(),'!SPM Box · 全部 7K 键型');
+    await page.locator('#all-preset').click();await page.locator('#preview').click();
     await waitFor(page,()=>!document.querySelector('#review').disabled);
     await page.locator('[data-tag="speed"]').click();await page.screenshot({path:path.join(output,'creator.png')});
     await page.locator('#rule-mode').selectOption('threshold');await page.locator('#threshold').fill('50');assert.equal(await page.locator('#review').isDisabled(),true);
@@ -46,12 +48,14 @@ async function waitFor(page,fn){await page.waitForFunction(fn,null,{timeout:6000
     assert.match(await page.locator('#boundary-note').innerText(),/50%/);
     await page.locator('#review').click();await page.locator('#review-dialog').waitFor({state:'visible'});
     assert.equal(await page.locator('.review-row').count(),19);assert.equal(await page.locator('#dialog-confirm').isDisabled(),true);
+    for(const text of await page.locator('.review-row').allTextContents())assert.match(text,/!SPM Box · 7K · /);
+    await page.screenshot({path:path.join(output,'prefixed-review.png')});
     await page.locator('#confirm-safe').check();await page.locator('#dialog-confirm').click();
     await page.locator('#review-dialog').waitFor({state:'hidden'});
     // The runtime must refuse a real running osu! process, even in isolated tests.
     const bytes=decode(await fs.readFile(path.join(temp,'collection.db')));
     if(bytes.collections.length===1){assert.match(await page.locator('#toast').innerText(),/退出 osu!/);console.log('Write UI correctly blocked by running osu!; core transactions covered by unit tests.');}
-    else{assert.equal(bytes.collections.length,20);assert.equal(bytes.collections[0].name,'SPM Box · 7K · Speed');}
+    else{assert.equal(bytes.collections.length,20);assert.equal(bytes.collections[0].name,'!SPM Box · 7K · Speed');for(const c of bytes.collections.slice(1))assert.ok(c.name.startsWith('!SPM Box · 7K · '));}
     await page.locator('[data-panel="managed"]').click();await page.locator('#managed-list .managed-item').first().waitFor();
     assert.equal(await page.locator('#managed-list input').first().isDisabled(),true);
     await page.screenshot({path:path.join(output,'managed.png')});

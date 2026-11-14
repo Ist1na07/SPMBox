@@ -3,6 +3,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {randomUUID}=require('node:crypto');
 const {atomicWrite,readJson}=require('./storage.cjs');
+const {COLLECTION_PREFIX}=require('./catalog.cjs');
 
 // osu!stable collection.db: i32 version, i32 count, osu-string name,
 // i32 number of maps, then osu-string MD5s. No extensible metadata field exists.
@@ -66,10 +67,16 @@ function plan(state,file,groups,scope) {
     if(entry){
       const matches=db.collections.filter(c=>c.name===entry.name);
       if(matches.length!==1||!sameMembers(matches[0].hashes,entry.hashes))throw Error(`收藏夹已被用户修改或删除，拒绝更新：${entry.name}`);
+      // Migrate only the previous generated spelling after ownership checks;
+      // preserve the UUID marker and reject collisions before changing either file.
+      const previousName=entry.name;
+      const name=previousName.startsWith('SPM Box · ')?COLLECTION_PREFIX+previousName.slice('SPM Box · '.length):previousName;
+      if(db.collections.some(c=>c!==matches[0]&&c.name===name))throw Error('收藏夹名称冲突：'+name);
+      matches[0].name=name;entry.name=name;
       matches[0].hashes=[...g.hashes];entry.hashes=[...g.hashes];entry.rule={mode:g.mode,threshold:g.threshold};
-      actions.push({type:'update',name:entry.name,count:g.hashes.length});
+      actions.push({type:'update',name:entry.name,count:g.hashes.length,...(previousName!==name?{previousName}:{})});
     }else{
-      const id=randomUUID(),name=`SPM Box · 7K · ${g.label} · ${scope} [SPMBox:v1:${manifest.owner}:${id}]`;
+      const id=randomUUID(),name=`${COLLECTION_PREFIX}7K · ${g.label} · ${scope} [SPMBox:v1:${manifest.owner}:${id}]`;
       if(db.collections.some(c=>c.name===name))throw Error('收藏夹名称冲突');
       db.collections.push({name,hashes:[...g.hashes]});
       manifest.entries.push({key,name,hashes:[...g.hashes],rule:{mode:g.mode,threshold:g.threshold}});

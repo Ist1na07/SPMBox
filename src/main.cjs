@@ -7,7 +7,7 @@ const {randomUUID}=require('node:crypto');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {Library}=require('./core/library.cjs');
-const {TAGS,ENGINE_VERSION,options:validateOptions,rules:validateRules}=require('./core/catalog.cjs');
+const {TAGS,ENGINE_VERSION,DEFAULT_PRESET_NAME,options:validateOptions,rules:validateRules}=require('./core/catalog.cjs');
 const {preview}=require('./core/rules.cjs');
 const collections=require('./core/collections.cjs');
 const {atomicWrite,readJson}=require('./core/storage.cjs');
@@ -43,7 +43,7 @@ function query(input={}){
   });return list;
 }
 const summary=()=>({count:library.rows.length,keys:[4,6,7].map(k=>({keys:k,count:library.rows.filter(r=>r.keys===k).length})),
-  options:library.options??null,root:library.root??null,report:library.report,settings,tags:TAGS,engine:ENGINE_VERSION,version:app.getVersion()});
+  options:library.options??null,root:library.root??null,report:library.report,settings,tags:TAGS,defaultPresetName:DEFAULT_PRESET_NAME,engine:ENGINE_VERSION,version:app.getVersion()});
 async function exclusive(action){if(writing||library.running)throw Error('另一项任务正在运行');writing=true;try{return await action();}finally{writing=false;}}
 async function selectRoot(){
   if(library.running||writing)throw Error('请先完成当前任务');

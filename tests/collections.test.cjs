@@ -5,6 +5,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const c=require('../src/core/collections.cjs');
+const {TAGS,COLLECTION_PREFIX,DEFAULT_PRESET_NAME}=require('../src/core/catalog.cjs');
 const h='a'.repeat(32),h2='b'.repeat(32),scope='detail-1x';
 const group={tag:'speed',label:'Speed',mode:'upstream',threshold:25,hashes:[h]};
 async function sandbox(t){const root=await fs.mkdtemp(path.join(os.tmpdir(),'spmbox-collections-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));return path.join(root,'collection.db');}
@@ -17,7 +18,7 @@ test('known binary layout and unicode/long ULEB128 names roundtrip',()=>{
   for(const bad of [binary.subarray(0,5),Buffer.concat([binary,Buffer.from([0])]),Buffer.from('01000000ffffffff','hex')])assert.throws(()=>c.decode(bad));
 });
 test('create/update preserve user collections, use durable markers, restore paired backup',async t=>{
-  const file=await sandbox(t),manual={name:'SPM Box · 7K · Speed',hashes:[h2]};
+  const file=await sandbox(t),manual={name:'!SPM Box · 7K · Speed',hashes:[h2]};
   await fs.writeFile(file,c.encode({version:20250101,collections:[manual]}));
   const initial=await c.readState(file),p=c.plan(initial,file,[group],scope);await c.commit(file,initial,p);
   let now=await c.readState(file);assert.deepEqual(now.db.collections[0],manual);assert.equal(now.db.collections.length,2);
@@ -26,6 +27,32 @@ test('create/update preserve user collections, use durable markers, restore pair
   now=await c.readState(file);assert.equal(now.db.collections.length,2);assert.equal(now.db.collections[1].hashes.length,2);
   const backups=await c.backups(file);assert.equal(backups.length,2);
   await c.restore(file,backups.at(-1));now=await c.readState(file);assert.deepEqual(now.db,initial.db);assert.equal(now.manifest,null);
+});
+test('every default collection and the preset share the sortable prefix',async t=>{
+  const file=await sandbox(t),initial=await c.readState(file);
+  const groups=TAGS.map(tag=>({...group,tag:tag.id,label:tag.label}));
+  const result=c.plan(initial,file,groups,scope);
+  assert.equal(COLLECTION_PREFIX,'!SPM Box · ');
+  assert.equal(DEFAULT_PRESET_NAME,'!SPM Box · 全部 7K 键型');
+  assert.equal(result.db.collections.length,19);
+  for(const collection of result.db.collections)assert.ok(collection.name.startsWith(COLLECTION_PREFIX+'7K · '));
+});
+test('verified legacy names migrate once, preserving markers; modified or colliding collections are protected',async t=>{
+  const file=await sandbox(t),initial=await c.readState(file),legacy=c.plan(initial,file,[group],scope);
+  const legacyName=legacy.db.collections[0].name.slice(1);
+  legacy.db.collections[0].name=legacyName;legacy.manifest.entries[0].name=legacyName;
+  await c.commit(file,initial,legacy);
+  const state=await c.readState(file),updated=c.plan(state,file,[group],scope),name=updated.db.collections[0].name;
+  assert.equal(name,'!'+legacyName);assert.equal(updated.actions[0].previousName,legacyName);
+  assert.equal(updated.manifest.owner,state.manifest.owner);assert.equal(updated.manifest.entries[0].name,name);
+  const edited=structuredClone(state);edited.db.collections[0].hashes.push(h2);
+  assert.throws(()=>c.plan(edited,file,[group],scope),/用户修改/);
+  const collision=structuredClone(state);collision.db.collections.push({name,hashes:[h2]});
+  assert.throws(()=>c.plan(collision,file,[group],scope),/名称冲突/);
+  await c.commit(file,state,updated);
+  const after=await c.readState(file),again=c.plan(after,file,[group],scope);
+  assert.equal(after.db.collections.length,1);assert.equal(c.managedState(after.db,after.manifest)[0].managed,true);
+  assert.equal(again.db.collections[0].name,name);assert.equal(again.actions[0].previousName,undefined);
 });
 test('manual edits, duplicate markers, missing manifest and foreign markers cannot be claimed',async t=>{
   const file=await sandbox(t),initial=await c.readState(file),p=c.plan(initial,file,[group],scope);await c.commit(file,initial,p);
