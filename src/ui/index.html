@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SPM Box</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" type="module"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><div class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span>SPM <b>Box</b></span></div>
+    <div class="nav-label">WORKSPACE</div>
+    <nav aria-label="主导航">
+      <button class="nav active" data-panel="library"><span>▦</span>谱面库<small id="nav-count">0</small></button>
+      <button class="nav" data-panel="creator"><span>⊞</span>收藏夹创建器</button>
+      <button class="nav" data-panel="managed"><span>▤</span>收藏夹管理</button>
+      <button class="nav" data-panel="settings"><span>⚙</span>设置与关于</button>
+    </nav>
+    <div class="sidebar-bottom"><span class="status-dot"></span> 本地运行 · 无需联网<div>SPM Rating / TagClassifier</div><button id="repo-link">Ist1na · <span id="app-version">v0.1.0</span> ↗</button></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><div><span class="crumb">SPM BOX</span><span class="slash">/</span><span id="breadcrumb">谱面库</span></div><span class="engine-badge">SPM Rating 1.2.0 <b>DETAILED</b></span></header>
+    <main>
+      <div id="global-note" class="notice" role="status" hidden></div>
+      <section id="panel-library" class="panel">
+        <div class="page-heading"><div><div class="eyebrow">YOUR CHARTS, A CLEARER PICTURE</div><h1>谱面库<span class="heading-dot">.</span></h1><p>用 SPM 难度找到下一张谱面。</p></div><div class="heading-actions"><button id="export" class="button secondary" disabled>导出 CSV ↗</button><button id="scan" class="button primary">分析谱面 <span>→</span></button></div></div>
+        <div class="path-line"><span class="folder-icon">⌁</span><span id="root-path">尚未连接 osu!stable 谱面库</span><button id="choose-root">选择文件夹</button></div>
+        <div id="scan-progress" class="progress-section" hidden><div class="progress-heading"><strong id="progress-title">正在发现谱面…</strong><button id="cancel" class="text-button">取消分析</button></div><progress id="progress-bar" max="1" value="0"></progress><div id="progress-detail" class="muted"></div></div>
+        <div class="stats"><div><span>已分析谱面</span><strong id="stat-total">0</strong></div><div><span>7K 谱面</span><strong id="stat-7k">0</strong></div><div><span>4K / 6K 谱面</span><strong id="stat-other">0</strong></div><div><span>上次分析</span><strong id="stat-time" class="stat-small">尚未分析</strong><small id="cache-detail">增量缓存已启用</small></div></div>
+        <div class="library-toolbar"><div class="segmented" id="key-filter" aria-label="键数筛选"><button class="active" data-keys="0">全部</button><button data-keys="7">7K</button><button data-keys="4">4K</button><button data-keys="6">6K</button></div><div class="filter-controls"><label class="search"><span>⌕</span><input id="search" placeholder="搜索歌名、难度、作者或 ID" aria-label="搜索谱面"></label><select id="tag-filter" aria-label="键型筛选"><option value="">全部键型</option></select><select id="sort" aria-label="排序方式"><option value="rating:desc">SPM Rating ↓</option><option value="rating:asc">SPM Rating ↑</option><option value="rcRating:desc">RC Rating ↓</option><option value="lnRating:desc">LN Rating ↓</option><option value="title:asc">曲名 A–Z</option><option value="beatmapId:desc">谱面 ID ↓</option></select></div></div>
+        <div class="table-shell"><table class="library-table"><thead><tr><th class="index-col">#</th><th>谱面 <span class="muted">/ BEATMAP</span></th><th>键数</th><th class="number">SPM ★</th><th class="number">RC</th><th class="number">LN</th><th>主要键型</th><th class="number">谱面 ID</th></tr></thead><tbody id="library-rows"></tbody></table>
+          <div id="empty-library" class="empty-state"><div class="lane-art" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><h2>把你的谱面，整理成下一步。</h2><p>连接 osu!stable 文件夹，开始第一次 SPM 分析。<br>谱面文件与原版星数不会被改动。</p><button class="button primary" id="empty-connect">连接谱面库 →</button><small>支持原生 4K · 6K · 7K，分类预设仅适用于 7K</small></div>
+        </div>
+        <div class="table-footer"><span id="result-count">0 张谱面</span><span class="muted">星数请在相同键数内比较 · 单击谱面查看详情</span><div><button id="prev-page" aria-label="上一页">←</button><span id="page-number">1 / 1</span><button id="next-page" aria-label="下一页">→</button></div></div>
+        <details id="scan-issues" hidden><summary id="issues-summary">分析报告</summary><div id="issues-list"></div></details>
+      </section>
+
+      <section id="panel-creator" class="panel" hidden>
+        <div class="page-heading"><div><div class="eyebrow">FROM PATTERNS TO COLLECTIONS</div><h1>收藏夹创建器<span class="heading-dot">.</span></h1><p>先看边界，再决定哪些谱面入选。</p></div><span class="pill">7K ONLY</span></div>
+        <div class="preset-banner"><div class="preset-icon">⊞</div><div><strong>全部 7K 键型</strong><p>按 TagClassifier 原始判定，一次创建全部 19 种分类收藏夹。空分类也会创建。</p></div><button class="button secondary" id="all-preset">应用默认预设</button></div>
+        <div class="creator-layout">
+          <div class="tag-picker"><div class="section-caption"><strong>分类键型</strong><button class="text-button" id="toggle-tags">全选 / 取消</button></div><div id="tag-rules"></div></div>
+          <div class="threshold-workbench"><div class="section-caption"><span class="eyebrow">THRESHOLD LAB</span><span id="selected-count">19 个已选分类</span></div><h2 id="active-tag">Chordjack</h2><p id="tag-family" class="muted">RC · 7K</p>
+            <div class="rule-controls"><label>入选规则<select id="rule-mode"><option value="upstream">TagClassifier 默认判定</option><option value="threshold">单维数值阈值</option></select></label><label><span>阈值 <span class="muted">%</span></span><input id="threshold" type="number" min="0" max="100" step="0.1" value="25" disabled></label><button class="text-button" id="reset-rule">恢复默认</button></div>
+            <p id="threshold-explanation" class="helper">默认判定保留上游的先验、增补与混合门控；它不等价于统一百分比阈值。</p>
+            <div class="workbench-actions"><span id="preview-context" class="muted">预览使用已完成的分析结果</span><button class="button secondary" id="preview">预览已选分类 →</button></div>
+            <div id="preview-empty" class="preview-empty"><span>↔</span><h3>阈值两侧，一目了然。</h3><p>预览将展示入选分数最低的 5 张谱面，<br>以及未入选分数最高的 5 张谱面，含在线 ID。</p></div>
+            <div id="boundary-preview" hidden><div class="boundary-heading"><h3 id="boundary-title">边界预览</h3><span id="boundary-count" class="pill"></span></div><div class="boundary-columns"><div><h4><span class="status-dot"></span> 入选末 5 位 <small>分数从低到高</small></h4><div id="inside-rows"></div></div><div><h4><span class="excluded-dot"></span> 未入选前 5 位 <small>分数从高到低</small></h4><div id="outside-rows"></div></div></div><p id="boundary-note" class="helper"></p></div>
+          </div>
+        </div>
+        <div class="creator-footer"><span>◇ 自动备份 · 标识校验 · 仅更新未被手动修改的自动收藏夹</span><button class="button primary" id="review" disabled>检查并创建收藏夹 →</button></div>
+      </section>
+
+      <section id="panel-managed" class="panel" hidden>
+        <div class="page-heading"><div><div class="eyebrow">ONLY WHAT BELONGS TO SPM BOX</div><h1>收藏夹管理<span class="heading-dot">.</span></h1><p>你的收藏夹，始终由你掌控。</p></div><button id="refresh-managed" class="button secondary">刷新列表 ↻</button></div>
+        <div class="notice subtle">只有名称标识、管理记录和谱面列表均匹配的收藏夹才能被更新或删除。手动修改过的收藏夹会被保护。</div>
+        <div id="managed-path" class="mono path-display"></div><div id="managed-list" class="managed-list"></div>
+        <div class="manage-actions"><button id="delete-managed" class="button danger" disabled>删除选中的自动收藏夹</button><button id="open-backups" class="button secondary">打开备份文件夹 ↗</button></div>
+        <div class="recovery-section"><div><h2>恢复收藏夹</h2><p class="muted">恢复整个 collection.db 及其管理标识；之后新增的手动收藏夹也会被回退。恢复前仍会备份当前文件。</p></div><div><select id="backup-select" aria-label="选择收藏夹备份"><option value="">暂无备份</option></select><button id="restore" class="button secondary" disabled>恢复此备份</button></div></div>
+      </section>
+
+      <section id="panel-settings" class="panel" hidden>
+        <div class="page-heading"><div><div class="eyebrow">BUILT AROUND SPM</div><h1>设置与关于<span class="heading-dot">.</span></h1><p>保持算法原貌，把时间花在打谱上。</p></div></div>
+        <div class="settings-section"><div><h2>谱面分析</h2><p>修改算法或速率后，回到谱面库重新分析。<br>已缓存的其他组合仍然保留。</p></div><div class="settings-fields"><label>SPM Rating 模型<select id="model"><option value="detail">Detailed · 完整模型（默认）</option><option value="compact">Compact · 轻量模型</option></select></label><label>播放速率<select id="rate"><option value="1">NM · 1.00×</option><option value="1.5">DT / NC · 1.50×</option><option value="0.75">HT · 0.75×</option></select></label><label>分析并行数<select id="workers"><option value="1">1 · 最低占用</option><option value="2">2</option><option value="4">4 · 推荐</option><option value="8">8 · 实际最多 4，按 CPU 限制</option></select></label><button id="save-settings" class="button primary">保存分析设置</button></div></div>
+        <div class="settings-section"><div><h2>缓存与数据</h2><p>文件大小、修改时间和变更时间不变的谱面直接复用结果。<br>新建或改动的谱面才会交给后台分析。</p></div><div><p>缓存按算法版本、模型、速率及绝对路径隔离。<br>收藏夹备份保存在 osu! 目录下的 <code>.spmbox-backups</code>。</p><button id="open-data" class="button secondary">打开应用数据文件夹 ↗</button></div></div>
+        <div class="settings-section"><div><h2>SPM Box <span class="muted">0.1.0</span></h2><p>MIT License · © 2026 Ist1na</p></div><div><p>SPM Rating 1.2.0-rc3 / SPM Submodel<br>SPMTagClassifier 1.2.4 · pinned b311c40<br>JavaScript 集成源：SPM Map Analyser b074e0f</p><p class="muted">功能参考 zzzzv / OsuManiaToolbox，独立实现桌面工具。<br>4K / 6K 可浏览原生粗分类；分类收藏夹仅使用 7K。<br>支持 osu!stable 的 collection.db，不写入 lazer 数据库。</p><button id="about-repo" class="text-button">源代码与第三方署名 ↗</button></div></div>
+      </section>
+    </main>
+  </div>
+  <div id="toast" role="status" hidden></div>
+  <dialog id="review-dialog"><div class="dialog-top"><div><div class="eyebrow">READY TO ORGANIZE</div><h2 id="dialog-title">确认创建收藏夹</h2></div><button class="close-dialog" aria-label="关闭">×</button></div><div id="dialog-content"></div><div class="dialog-bottom"><button class="button secondary close-dialog">取消</button><button id="dialog-confirm" class="button primary">确认写入</button></div></dialog>
+  <dialog id="detail-dialog"><div class="dialog-top"><div><div class="eyebrow">BEATMAP DETAILS</div><h2 id="detail-title"></h2></div><button class="close-dialog" aria-label="关闭详情">×</button></div><div id="detail-content"></div></dialog>
+</body>
+</html>

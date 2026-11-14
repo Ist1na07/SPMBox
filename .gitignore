@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.upstream/
+.local/
+test-results/
+playwright-report/
+*.log
+prompt.txt
+

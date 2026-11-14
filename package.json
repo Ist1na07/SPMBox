@@ -1,0 +1,32 @@
+{
+  "name": "spm-box",
+  "productName": "SPM Box",
+  "version": "0.1.0",
+  "description": "Offline osu!mania library, SPM Rating and safe pattern collections",
+  "main": "src/main.cjs",
+  "author": "Ist1na",
+  "license": "MIT",
+  "repository": "https://github.com/Ist1na07/SPMBox",
+  "engines": {"node": ">=22"},
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.cjs",
+    "test:ui": "node tests/ui.cjs",
+    "benchmark": "node scripts/benchmark.cjs",
+    "build": "electron-builder --win portable --x64",
+    "build:dir": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "45.3.2",
+    "electron-builder": "26.18.0",
+    "playwright": "1.65.1"
+  },
+  "build": {
+    "appId": "io.github.ist1na07.spmbox",
+    "artifactName": "SPM-Box-${version}-${arch}.${ext}",
+    "files": ["src/**/*", "assets/**/*", "vendor/**/*", "LICENSE", "THIRD_PARTY_NOTICES.md", "README.md"],
+    "asar": true,
+    "win": {"target": "portable", "icon": "assets/icon.ico", "signExecutable": false},
+    "portable": {"artifactName": "SPM-Box-${version}-portable.${ext}"}
+  }
+}
